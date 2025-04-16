@@ -1,0 +1,96 @@
+// _custom_variables.scss
+$white: #fff;
+$light: #fff;
+// $light: #ddd;
+$dark: #1f1f1f;
+
+$dark-description-color: #727272;
+$dark-text-color: #d1d1d1;
+
+$light-description-color: #868686;
+$light-text-color: #333;
+
+$darkness-dark: #1c1c1c;
+$darkness-shadow: #292929;
+$dark-hover: #121212;
+$light-hover: $light;
+
+// Переопределяем переменные Bootstrap, если нужно
+$body-bg: #bbbbbb;
+$primary-color: #3498db;
+
+$border-radius: 10px;
+
+// Собственные переменные для проекта
+$custom-light-background: $light;
+$custom-light-secondary-background: #f6f6f6;
+
+$custom-dark-background: #101010;
+$custom-dark-secondary-background: #0000002b;
+
+$custom-text-color-light: $dark;
+$custom-text-color-dark: $light;
+
+$custom-transition: background-color 0.3s ease, color 0.3s ease;
+
+$custom-primary-color-light: $dark;
+$custom-primary-color-dark: #a569ff;
+
+$custom-bs-body-bg-light: $light;
+$custom-bs-body-bg-dark: $dark;
+
+$single-page-background-color-light: $body-bg;
+$single-page-background-color-dark: $darkness-dark;
+
+// Buttons
+$button-hover-background-color-dark: $dark-hover;
+$button-hover-background-color-light: $light-hover;
+
+
+// Shadows
+
+// Shadows light
+$custom-shadow-color-light: #d7d7d7;
+$inner-shadow-color-light: #d7d7d7;
+
+// Shadows dark
+$custom-shadow-color-dark: $darkness-shadow;
+$inner-shadow-color-dark: #1a1a1a;
+
+$option-container-correct-color-light: #d4edda;
+$option-container-incorrect-color-light: #f8d7da;
+$option-container-explanation-color-light: #f1f1f1;
+
+$option-container-correct-color-dark: #589174;
+$option-container-incorrect-color-dark: #c54b53;
+$option-container-explanation-color-dark: #1d1d1d;
+
+
+$background-page-color-dark: #121113;
+$background-page-color-light: #d3d3d3;
+
+$background-rating-item-light: linear-gradient(270.75deg, rgba(99, 96, 183, 0.44) 0.65%, rgba(54, 78, 235, 0.44) 99.46%);
+$background-rating-item-dark: linear-gradient(269.75deg, rgba(29, 29, 29, 0.2) 0.17%, rgba(36, 33, 33, 0.2) 99.74%);
+
+
+$background-leaderpage-color-light: #f1f1f1;
+$background-leaderpage-color-dark: #121113;
+
+$background-tooltip-color-dark: #121113;
+$background-tooltip-color-light: #fff;
+
+$background-vocabular-background-color-dark: #00000059;
+
+$background-dictionary-container-color-light: #fff;
+$background-dictionary-container-color-dark: #12121261;
+
+$background-item-color-light: #fff;
+$background-item-color-dark: #2d2d2d;
+
+$text-secondary-color-light: #333;
+$text-secondary-color-dark: #fff;
+
+$inner-component-color-light: #f6f6f6;
+$inner-component-color-light-hover: #f8f8f8;
+$inner-component-color-dark: #111;
+$inner-component-color-dark-hover: #181818;

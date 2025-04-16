@@ -1,0 +1,77 @@
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@200..1000&display=swap');
+
+:root {
+    --font-family-primary: 'Nunito', sans-serif;
+    --font-size-heading: 24px;
+    --font-size-body: 14px;
+    --font-size-small: 14px;
+    --line-height-body: 1.5;
+    --letter-spacing: -0.05em;
+}
+
+/* Заголовки */
+.heading {
+    font-family: var(--font-family-primary);
+    font-weight: 700;
+    font-size: var(--font-size-heading);
+    letter-spacing: var(--letter-spacing);
+    line-height: 28px;
+    color: var(--text-color);
+    margin-bottom: 12px;
+}
+
+/* Основной текст */
+.typography-body {
+    // font-family: var(--font-family-primary);
+    // font-weight: 400;
+    // font-size: var(--font-size-body);
+    // line-height: 18px;
+    // letter-spacing: var(--letter-spacing);
+    // margin-bottom: 24px;
+    // color: #BFBFBF;
+    font-weight: 400;
+    font-size: 14px;
+    line-height: 1.5;
+    margin-top: 4px;
+    color: var(--description-color);
+    margin-bottom: 0;
+    p {
+        margin-bottom: 1rem;
+    }
+}
+.description {
+    // font-family: var(--font-family-primary);
+    // font-weight: 400;
+    // font-size: var(--font-size-body);
+    // line-height: 18px;
+    // letter-spacing: var(--letter-spacing);
+    // margin-bottom: 24px;
+    // color: #BFBFBF;
+    font-weight: 400;
+    font-size: 14px;
+    line-height: 1.5;
+    margin-top: 4px;
+    color: var(--description-color);
+    margin-bottom: 0;
+}
+
+p {
+    font-weight: 400;
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--text-color);
+    margin-bottom: 0;
+}
+
+/* Маленький текст */
+.typography-small {
+    font-family: var(--font-family-primary);
+    font-weight: 400;
+    font-size: var(--font-size-small);
+    line-height: var(--line-height-body);
+    letter-spacing: var(--letter-spacing);
+}
+
+// .my-class {
+//     color: red;
+// }   
