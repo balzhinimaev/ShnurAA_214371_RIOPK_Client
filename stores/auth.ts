@@ -1,27 +1,41 @@
 // stores/auth.ts
 import { defineStore } from "pinia";
-import type { UserResponseDto } from "~/types/auth"; // Предполагаем, что типы DTO вынесены
+import type { UserResponseDto } from "~/types/auth";
+
+// Ключ для localStorage
+const AUTH_TOKEN_KEY = "auth_token";
 
 export const useAuthStore = defineStore("auth", {
   state: () => ({
-    token: useCookie<string | null>("auth_token", {
-      // Используем Cookie для хранения токена
-      maxAge: 60 * 60 * 24 * 7, // Например, 7 дней
-      sameSite: "lax",
-    }),
+    // Инициализируем token как null.
+    // Он будет заполнен из localStorage в плагине на стороне клиента.
+    token: null as string | null,
     user: null as UserResponseDto | null,
-    // isAuthenticated: false, // Заменим на computed getter
   }),
   getters: {
-    // Вычисляемое свойство для проверки аутентификации
     isAuthenticated: (state) => !!state.token && !!state.user,
-    // Можно добавить геттер для ролей, если нужно
-    // userRoles: (state) => state.user?.roles || [],
+    // userRoles: (state) => state.user?.roles || [], // Можно добавить
   },
   actions: {
-    // Устанавливаем токен (например, после логина/регистрации)
+    // Action для установки токена в state и localStorage
     setToken(newToken: string | null) {
-      this.token = newToken; // Автоматически обновит cookie
+      // 1. Обновляем состояние Pinia
+      this.token = newToken;
+
+      // 2. Обновляем localStorage (ТОЛЬКО на клиенте)
+      if (process.client) {
+        if (newToken) {
+          localStorage.setItem(AUTH_TOKEN_KEY, newToken);
+          console.log(
+            `[AuthStore] Token SET in localStorage (${AUTH_TOKEN_KEY})`
+          );
+        } else {
+          localStorage.removeItem(AUTH_TOKEN_KEY);
+          console.log(
+            `[AuthStore] Token REMOVED from localStorage (${AUTH_TOKEN_KEY})`
+          );
+        }
+      }
     },
 
     // Устанавливаем данные пользователя (после логина или /me)
@@ -32,29 +46,27 @@ export const useAuthStore = defineStore("auth", {
     // Выход из системы
     logout() {
       console.log("Logging out...");
+      // setToken(null) обработает и state, и localStorage
       this.setToken(null);
       this.setUser(null);
-      // Опционально: редирект на страницу входа
-      // const router = useRouter();
-      // router.push('/login');
-      // В Pinia store прямой доступ к useRouter не рекомендуется, лучше делать редирект из компонента/middleware
       navigateTo("/login", { replace: true });
     },
 
-    // (Асинхронное действие) Загрузка данных пользователя с бэкенда
+    // Загрузка данных пользователя с бэкенда
     async fetchUser() {
+      // Проверяем токен из СОСТОЯНИЯ store
       if (!this.token) {
-        console.log("fetchUser: No token found.");
-        return; // Нет токена - не можем загрузить пользователя
+        console.log("fetchUser: No token found in store state.");
+        return;
       }
-      console.log("fetchUser: Fetching user data...");
+      console.log("fetchUser: Fetching user data (token exists in state)...");
 
       const config = useRuntimeConfig();
       try {
-        // Используем встроенный $fetch Nuxt
         const userData = await $fetch<UserResponseDto>(`/auth/me`, {
           baseURL: config.public.apiBase,
           headers: {
+            // Используем токен из СОСТОЯНИЯ store
             Authorization: `Bearer ${this.token}`,
           },
         });
@@ -62,18 +74,17 @@ export const useAuthStore = defineStore("auth", {
         this.setUser(userData);
       } catch (error: any) {
         console.error("fetchUser: Error fetching user:", error);
-        // Если ошибка (например, 401), токен невалиден, выходим из системы
         if (error.response?.status === 401) {
           console.warn("fetchUser: Token invalid or expired, logging out.");
-          this.logout(); // Вызываем logout, который очистит состояние и редиректит
+          this.logout(); // Вызываем logout, который очистит состояние и localStorage
         } else {
-          // Другая ошибка, просто очищаем пользователя, но оставляем токен (возможно, временная проблема сети)
+          // Другая ошибка, просто очищаем пользователя
           this.setUser(null);
         }
       }
     },
 
-    // (Асинхронное действие) Логин
+    // Логин
     async login(credentials: { email: string; password: string }) {
       const config = useRuntimeConfig();
       console.log(`Attempting login for ${credentials.email}`);
@@ -90,22 +101,20 @@ export const useAuthStore = defineStore("auth", {
           "[AuthStore] Login successful response received:",
           response
         );
+        // Используем action setToken, он обновит state и localStorage
         this.setToken(response.accessToken);
-        console.log("[AuthStore] Token SET in store/cookie:", this.token);
         this.setUser(response.user);
         console.log("[AuthStore] User SET in store:", this.user);
-        // Редирект после успешного логина
         navigateTo("/", { replace: true });
       } catch (error: any) {
         console.error("Login failed:", error);
-        this.setToken(null); // Сбрасываем токен при ошибке логина
+        this.setToken(null); // Сбрасываем токен в state и localStorage при ошибке
         this.setUser(null);
-        // Пробрасываем ошибку, чтобы компонент мог ее показать
         throw error;
       }
     },
 
-    // (Асинхронное действие) Регистрация
+    // Регистрация
     async register(userInfo: {
       name: string;
       email: string;
@@ -114,43 +123,35 @@ export const useAuthStore = defineStore("auth", {
       const config = useRuntimeConfig();
       console.log(`Attempting registration for ${userInfo.email}`);
       try {
-        // Ожидаем, что регистрация вернет UserResponseDto
         const registeredUser = await $fetch<UserResponseDto>(`/auth/register`, {
           baseURL: config.public.apiBase,
           method: "POST",
           body: userInfo,
         });
         console.log("Registration successful:", registeredUser);
-        // После успешной регистрации можно сразу залогинить пользователя
-        // или перенаправить на страницу логина
-        // Вариант 1: Редирект на логин
-        // navigateTo('/login');
-        // Вариант 2: Попробовать залогиниться (если API это поддерживает или мы знаем пароль)
+        // Попробуем залогиниться после успешной регистрации
         await this.login({
           email: userInfo.email,
           password: userInfo.password,
         });
       } catch (error: any) {
         console.error("Registration failed:", error);
-        this.setToken(null); // Сбрасываем токен/пользователя на всякий случай
+        this.setToken(null); // Сбрасываем токен в state и localStorage
         this.setUser(null);
-        // Пробрасываем ошибку для отображения в компоненте
         throw error;
       }
     },
   },
 });
 
-// Определяем типы DTO (можно вынести в отдельный файл, например, types/auth.ts)
-// Определение должно совпадать с вашими DTO на бэкенде
+// Определение DTO остается таким же
 declare module "~/types/auth" {
-  // Используем declare module для типизации
   export interface UserResponseDto {
     id: string;
     name: string;
     email: string;
-    roles: string[]; // Или более конкретный тип UserRole[]
-    createdAt: string; // Или Date
-    updatedAt: string; // Или Date
+    roles: string[];
+    createdAt: string;
+    updatedAt: string;
   }
 }
