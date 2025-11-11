@@ -10,10 +10,17 @@ interface AgingBucket {
   count: number;
 }
 
+interface TopDebtor {
+  name: string;
+  amount: number;
+}
+
 interface DashboardSummary {
   totalReceivables: number;
   overdueReceivables: number;
   agingStructure: AgingBucket[];
+  topDebtors?: TopDebtor[];
+  lastUpdatedAt?: string;
 }
 
 // --- Тип состояния Store ---
