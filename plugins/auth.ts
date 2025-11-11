@@ -8,35 +8,33 @@ export default defineNuxtPlugin(async (nuxtApp) => {
   const authStore = useAuthStore();
   let fetchAttempted = false;
 
-  // --- Инициализация состояния токена из localStorage (ТОЛЬКО КЛИЕНТ) ---
-  if (process.client) {
+  // --- Инициализация состояния токена из cookie / localStorage ---
+  const tokenCookie = useCookie<string | null>(AUTH_TOKEN_KEY);
+  let initialToken: string | null = tokenCookie.value ?? null;
+
+  if (!initialToken && process.client) {
     const storedToken = localStorage.getItem(AUTH_TOKEN_KEY);
     console.log(
       `[Auth Plugin] Checking localStorage for key '${AUTH_TOKEN_KEY}':`,
       storedToken ? "Found" : "Not Found"
     );
-
-    // Если в localStorage есть токен, а в store его нет (т.е. свежая загрузка клиента)
-    if (storedToken && authStore.token === null) {
+    initialToken = storedToken ?? null;
+    // Если нашли токен только в localStorage, синхронизируем cookie для SSR
+    if (initialToken) {
       console.log(
-        "[Auth Plugin] Token found in localStorage. Hydrating store state."
+        "[Auth Plugin] Token found in localStorage. Syncing cookie/state."
       );
-      // Напрямую устанавливаем токен в состояние store.
-      // НЕ используем setToken здесь, чтобы не перезаписывать localStorage лишний раз.
-      authStore.token = storedToken;
-    }
-    // Если в localStorage токена нет, но он почему-то есть в store (маловероятно, но для чистоты)
-    else if (!storedToken && authStore.token !== null) {
-      console.warn(
-        "[Auth Plugin] Token mismatch (store has one, LS doesn't). Clearing store token."
-      );
-      authStore.token = null; // Синхронизируем состояние store с localStorage
+      authStore.setToken(initialToken);
     }
   }
-  // --- Конец инициализации ---
 
-  // Теперь остальная логика плагина работает с состоянием store,
-  // которое на клиенте отражает данные из localStorage.
+  if (initialToken && authStore.token !== initialToken) {
+    console.log("[Auth Plugin] Hydrating store token from cookie.");
+    authStore.setToken(initialToken);
+  } else if (!initialToken && authStore.token) {
+    console.warn("[Auth Plugin] No token found. Clearing store state token.");
+    authStore.setToken(null);
+  }
 
   // Проверяем токен в состоянии store ПОСЛЕ попытки гидратации
   if (authStore.token) {

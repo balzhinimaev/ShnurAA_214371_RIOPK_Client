@@ -22,6 +22,14 @@ export const useAuthStore = defineStore("auth", {
       // 1. Обновляем состояние Pinia
       this.token = newToken;
 
+      // 1а. Синхронизируем cookie (доступно и на сервере, и на клиенте)
+      const tokenCookie = useCookie<string | null>(AUTH_TOKEN_KEY, {
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+        path: "/",
+      });
+      tokenCookie.value = newToken;
+
       // 2. Обновляем localStorage (ТОЛЬКО на клиенте)
       if (process.client) {
         if (newToken) {
