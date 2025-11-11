@@ -107,7 +107,7 @@
             </div>
         </nav>
 
-        <main class="container mt-5 pt-4 flex-grow-1">
+        <main class="flex-grow-1">
             <slot />
         </main>
 

@@ -11,8 +11,45 @@ interface AgingBucket {
 }
 
 interface TopDebtor {
-  name: string;
-  amount: number;
+  customerId: string;
+  customerName: string;
+  customerInn: string;
+  invoiceCount: number;
+  oldestDebtDays: number;
+  totalDebt: number;
+  overdueDebt: number;
+}
+
+interface AgingCustomer {
+  invoiceCount: number;
+  overdueInvoiceCount: number;
+  oldestDebtDays: number;
+  agingBucket: string;
+  customerId: string;
+  customerName: string;
+  customerInn: string;
+  totalDebt: number;
+  overdueDebt: number;
+  currentDebt: number;
+  agingBreakdown: {
+    current: number;
+    days_1_30: number;
+    days_31_60: number;
+    days_61_90: number;
+    days_91_plus: number;
+  };
+}
+
+interface AgingCustomersResponse {
+  customers: AgingCustomer[];
+  total: number;
+  limit: number;
+  offset: number;
+  summary: {
+    totalOverdueAmount: number;
+    totalCustomers: number;
+    averageDaysOverdue: number;
+  };
 }
 
 interface DashboardSummary {
@@ -28,6 +65,12 @@ interface ReportState {
   dashboardSummary: DashboardSummary | null;
   isLoading: boolean;
   error: string | null;
+  topDebtors: TopDebtor[];
+  topDebtorsLoading: boolean;
+  topDebtorsError: string | null;
+  agingCustomers: Record<string, AgingCustomer[]>;
+  agingCustomersLoading: Record<string, boolean>;
+  agingCustomersError: Record<string, string | null>;
 }
 
 export const useReportStore = defineStore("report", {
@@ -35,6 +78,12 @@ export const useReportStore = defineStore("report", {
     dashboardSummary: null,
     isLoading: false,
     error: null,
+    topDebtors: [],
+    topDebtorsLoading: false,
+    topDebtorsError: null,
+    agingCustomers: {},
+    agingCustomersLoading: {},
+    agingCustomersError: {},
   }),
 
   getters: {
@@ -72,6 +121,56 @@ export const useReportStore = defineStore("report", {
   },
 
   actions: {
+    // Асинхронное действие для загрузки клиентов по aging bucket
+    async fetchAgingCustomers(agingBucket: string, displayBucket?: string) {
+      const apiBucket = agingBucket; // agingBucket теперь уже преобразованный для API
+      const storeKey = displayBucket || apiBucket; // Ключ для хранения в store
+
+      console.log(`[ReportStore] Fetching aging customers for bucket: ${apiBucket} (display: ${storeKey})`);
+      this.agingCustomersLoading[storeKey] = true;
+      this.agingCustomersError[storeKey] = null;
+
+      const authStore = useAuthStore();
+      const config = useRuntimeConfig();
+
+      if (!authStore.isAuthenticated || !authStore.token) {
+        this.agingCustomersLoading[storeKey] = false;
+        this.agingCustomersError[storeKey] = "Пользователь не аутентифицирован.";
+        console.error("[ReportStore] Cannot load aging customers: user not authenticated.");
+        return;
+      }
+
+      try {
+        const response = await $fetch<AgingCustomersResponse>(
+          `/reports/customers-overdue?agingBucket=${apiBucket}`,
+          {
+            baseURL: config.public.apiBase,
+            method: "GET",
+            headers: {
+              Authorization: `Bearer ${authStore.token}`,
+            },
+          }
+        );
+
+        console.log(`[ReportStore] Aging customers for ${apiBucket} received:`, response);
+        this.agingCustomers[storeKey] = response.customers;
+      } catch (err: any) {
+        console.error(`[ReportStore] Error fetching aging customers for ${apiBucket}:`, err);
+        if (err.response?.status === 403) {
+          this.agingCustomersError[storeKey] =
+            "Доступ запрещен: у вас нет прав для просмотра списка клиентов.";
+        } else {
+          this.agingCustomersError[storeKey] =
+            err.data?.message ||
+            err.message ||
+            "Не удалось загрузить список клиентов.";
+        }
+        this.agingCustomers[storeKey] = [];
+      } finally {
+        this.agingCustomersLoading[storeKey] = false;
+      }
+    },
+
     // Асинхронное действие для загрузки сводки дашборда
     async fetchDashboardSummary() {
       console.log("[ReportStore] Fetching dashboard summary...");
@@ -122,6 +221,50 @@ export const useReportStore = defineStore("report", {
         this.dashboardSummary = null; // Убедимся, что данных нет при ошибке
       } finally {
         this.isLoading = false;
+      }
+    },
+
+    async fetchTopDebtors() {
+      console.log("[ReportStore] Fetching top debtors...");
+      this.topDebtorsLoading = true;
+      this.topDebtorsError = null;
+
+      const authStore = useAuthStore();
+      const config = useRuntimeConfig();
+
+      if (!authStore.isAuthenticated || !authStore.token) {
+        this.topDebtorsLoading = false;
+        this.topDebtorsError = "Пользователь не аутентифицирован.";
+        console.error("[ReportStore] Cannot load top debtors: user not authenticated.");
+        this.topDebtors = [];
+        return;
+      }
+
+      try {
+        const debtors = await $fetch<TopDebtor[]>(`/reports/top-debtors`, {
+          baseURL: config.public.apiBase,
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${authStore.token}`,
+          },
+        });
+
+        console.log("[ReportStore] Top debtors received:", debtors);
+        this.topDebtors = Array.isArray(debtors) ? debtors : [];
+      } catch (err: any) {
+        console.error("[ReportStore] Error fetching top debtors:", err);
+        if (err.response?.status === 403) {
+          this.topDebtorsError =
+            "Доступ запрещен: у вас нет прав для просмотра списка должников.";
+        } else {
+          this.topDebtorsError =
+            err.data?.message ||
+            err.message ||
+            "Не удалось загрузить список должников.";
+        }
+        this.topDebtors = [];
+      } finally {
+        this.topDebtorsLoading = false;
       }
     },
   },

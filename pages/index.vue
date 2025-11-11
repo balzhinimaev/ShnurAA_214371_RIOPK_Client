@@ -1,7 +1,8 @@
 // pages/index.vue
 <template>
-    <div class="dashboard-page">
-        <div class="dashboard-container">
+    <ClientOnly>
+        <div class="dashboard-page">
+            <div class="dashboard-container">
             <header class="dashboard-header">
                 <div class="header-left">
                     <h1 class="page-title">📊 Дашборд анализа дебиторской задолженности</h1>
@@ -105,18 +106,93 @@
                             <p class="chart-subtitle">Общий объём просрочки: {{ formattedOverdueReceivables }}</p>
                         </div>
                         <div v-if="agingData.length" class="aging-bars">
-                            <div v-for="aging in agingData" :key="aging.bucket" class="aging-bar">
-                                <div class="aging-label">{{ aging.bucket }}</div>
-                                <div class="aging-progress">
-                                    <div
-                                        class="aging-fill"
-                                        :class="aging.colorClass"
-                                        :style="{ width: aging.width }"
-                                    >
-                                        <span>{{ aging.formattedAmount }}</span>
+                            <div v-for="aging in agingData" :key="aging.bucket" class="aging-item" :class="{ 'aging-item-expanded': expandedAgingItems[aging.bucket] }">
+                                <div class="aging-item-header" @click="handleAgingItemClick(aging.bucket)">
+                                    <div class="aging-item-title">
+                                        <span class="aging-badge" :class="aging.colorClass">{{ aging.bucket }}</span>
+                                        <span class="aging-count">{{ aging.count }} счетов</span>
+                                    </div>
+                                    <div class="aging-item-stats">
+                                        <span class="aging-amount">{{ aging.formattedAmount }}</span>
+                                        <span class="aging-percent-badge">{{ aging.percentLabel }}</span>
+                                        <span class="aging-expand-icon" :class="{ 'rotated': expandedAgingItems[aging.bucket] }">▼</span>
                                     </div>
                                 </div>
-                                <span class="aging-percent">{{ aging.percentLabel }}</span>
+                                <div class="aging-progress-bar">
+                                    <div
+                                        class="aging-progress-fill"
+                                        :class="aging.colorClass"
+                                        :style="{ width: aging.percent + '%' }"
+                                    ></div>
+                                </div>
+
+                                <!-- Раскрываемый контент с клиентами -->
+                                <div v-if="expandedAgingItems[aging.bucket]" class="aging-customers-container">
+                                    <!-- Состояние загрузки -->
+                                    <div v-if="reportStore.agingCustomersLoading[aging.bucket]" class="aging-customers-loading">
+                                        <div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div>
+                                        Загружаем клиентов...
+                                    </div>
+
+                                    <!-- Ошибка загрузки -->
+                                    <div v-else-if="reportStore.agingCustomersError[aging.bucket]" class="aging-customers-error">
+                                        <p class="error-text">{{ reportStore.agingCustomersError[aging.bucket] }}</p>
+                                        <button type="button" class="retry-btn" @click="reportStore.fetchAgingCustomers(aging.bucket)">Повторить</button>
+                                    </div>
+
+                                    <!-- Список клиентов -->
+                                    <div v-else-if="reportStore.agingCustomers[aging.bucket]?.length" class="aging-customers-list">
+                                        <div v-for="customer in reportStore.agingCustomers[aging.bucket]" :key="customer.customerId" class="aging-customer-card">
+                                            <div class="customer-header">
+                                                <div class="customer-info">
+                                                    <h4 class="customer-name">{{ customer.customerName }}</h4>
+                                                    <p class="customer-details">
+                                                        <span v-if="customer.customerInn" class="customer-inn">ИНН: {{ customer.customerInn }}</span>
+                                                        <span class="customer-invoices">{{ customer.invoiceCount }} счетов</span>
+                                                        <span class="customer-oldest-days">{{ formatOldestDebtDays(customer.oldestDebtDays) }}</span>
+                                                    </p>
+                                                </div>
+                                                <div class="customer-stats">
+                                                    <div class="stat-item">
+                                                        <span class="stat-label">Общий долг</span>
+                                                        <span class="stat-value">{{ formatCurrency(customer.totalDebt) }}</span>
+                                                    </div>
+                                                    <div class="stat-item stat-overdue">
+                                                        <span class="stat-label">Просрочено</span>
+                                                        <span class="stat-value">{{ formatCurrency(customer.overdueDebt) }}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="customer-breakdown">
+                                                <div class="breakdown-item" v-if="customer.agingBreakdown.current > 0">
+                                                    <span class="breakdown-label">Текущие</span>
+                                                    <span class="breakdown-value">{{ formatCurrency(customer.agingBreakdown.current) }}</span>
+                                                </div>
+                                                <div class="breakdown-item" v-if="customer.agingBreakdown.days_1_30 > 0">
+                                                    <span class="breakdown-label">1-30 дней</span>
+                                                    <span class="breakdown-value">{{ formatCurrency(customer.agingBreakdown.days_1_30) }}</span>
+                                                </div>
+                                                <div class="breakdown-item" v-if="customer.agingBreakdown.days_31_60 > 0">
+                                                    <span class="breakdown-label">31-60 дней</span>
+                                                    <span class="breakdown-value">{{ formatCurrency(customer.agingBreakdown.days_31_60) }}</span>
+                                                </div>
+                                                <div class="breakdown-item" v-if="customer.agingBreakdown.days_61_90 > 0">
+                                                    <span class="breakdown-label">61-90 дней</span>
+                                                    <span class="breakdown-value">{{ formatCurrency(customer.agingBreakdown.days_61_90) }}</span>
+                                                </div>
+                                                <div class="breakdown-item" v-if="customer.agingBreakdown.days_91_plus > 0">
+                                                    <span class="breakdown-label">91+ дней</span>
+                                                    <span class="breakdown-value">{{ formatCurrency(customer.agingBreakdown.days_91_plus) }}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Пустое состояние -->
+                                    <div v-else class="aging-customers-empty">
+                                        Нет клиентов в этой категории
+                                    </div>
+                                </div>
                             </div>
                         </div>
                         <p v-else class="empty-state">Данные по структуре просрочки отсутствуют.</p>
@@ -137,19 +213,36 @@
                         <div v-if="topDebtors.length" class="top-debtors">
                             <div
                                 v-for="(debtor, index) in topDebtors"
-                                :key="`${debtor.name}-${index}`"
-                                class="debtor-item"
+                                :key="debtor.customerId || `${debtor.customerName}-${index}`"
+                                class="debtor-card"
                             >
-                                <div class="debtor-info">
-                                    <span class="debtor-rank">{{ index + 1 }}</span>
-                                    <div>
-                                        <p class="debtor-name">{{ debtor.name }}</p>
-                                        <p class="debtor-subtitle">Просрочено: {{ debtor.amountLabel }}</p>
+                                <div class="debtor-card-header">
+                                    <div class="debtor-title-section">
+                                        <span class="debtor-rank-badge">{{ index + 1 }}</span>
+                                        <div class="debtor-info-block">
+                                            <p class="debtor-name">{{ debtor.customerName }}</p>
+                                            <p class="debtor-details">{{ debtor.details }}</p>
+                                        </div>
                                     </div>
                                 </div>
-                                <span class="debtor-amount">{{ debtor.amountLabel }}</span>
+                                <div class="debtor-stats">
+                                    <div class="debtor-stat-item debtor-stat-total">
+                                        <span class="debtor-stat-label">Общий долг</span>
+                                        <span class="debtor-stat-value">{{ debtor.totalDebtLabel }}</span>
+                                    </div>
+                                    <div class="debtor-stat-item debtor-stat-overdue" :class="{ 'debtor-stat-zero': debtor.overdueDebt <= 0 }">
+                                        <span class="debtor-stat-label">Просрочено</span>
+                                        <span class="debtor-stat-value">{{ debtor.overdueDebtLabel }}</span>
+                                    </div>
+                                </div>
                             </div>
                         </div>
+                        <p v-else-if="reportStore.topDebtorsLoading" class="empty-state">
+                            Загружаем информацию о должниках...
+                        </p>
+                        <p v-else-if="reportStore.topDebtorsError" class="empty-state">
+                            {{ reportStore.topDebtorsError }}
+                        </p>
                         <p v-else class="empty-state">Информация о должниках пока недоступна.</p>
                     </article>
                 </section>
@@ -178,12 +271,27 @@
             <div v-if="!authStore.isAuthenticated" class="alert alert-warning mt-4" role="alert">
                 Для доступа к дашборду необходимо авторизоваться.
             </div>
+            </div>
         </div>
-    </div>
+        <template #fallback>
+            <div class="dashboard-page">
+                <div class="dashboard-container">
+                    <div class="state-card loading-card">
+                        <div class="loading-indicator">
+                            <div class="spinner-grow text-light" role="status">
+                                <span class="visually-hidden">Загрузка...</span>
+                            </div>
+                            <p class="loading-text">Загружаем дашборд...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </template>
+    </ClientOnly>
 </template>
 
 <script setup lang="ts">
-import { onMounted, computed } from 'vue';
+import { onMounted, computed, ref } from 'vue';
 import { useAuthStore } from '~/stores/auth';
 import { useReportStore } from '~/stores/report';
 
@@ -193,6 +301,9 @@ definePageMeta({
 
 const authStore = useAuthStore();
 const reportStore = useReportStore();
+
+// Состояние для раскрытых aging элементов (ключ - bucket, значение - boolean)
+const expandedAgingItems = ref<Record<string, boolean>>({});
 
 const summary = computed(() => reportStore.dashboardSummary);
 
@@ -295,12 +406,59 @@ const additionalMetrics = computed(() => {
     return metrics;
 });
 
+const formatInvoiceCount = (count: number) => {
+    if (!Number.isFinite(count) || count <= 0) {
+        return 'Нет счетов';
+    }
+
+    const lastDigit = count % 10;
+    const lastTwoDigits = count % 100;
+
+    if (lastDigit === 1 && lastTwoDigits !== 11) {
+        return `${count} счёт`;
+    }
+
+    if ([2, 3, 4].includes(lastDigit) && ![12, 13, 14].includes(lastTwoDigits)) {
+        return `${count} счёта`;
+    }
+
+    return `${count} счетов`;
+};
+
+const formatOldestDebtDays = (days: number) => {
+    if (!Number.isFinite(days) || days <= 0) {
+        return 'Без просрочки';
+    }
+
+    const lastDigit = days % 10;
+    const lastTwoDigits = days % 100;
+
+    if (lastDigit === 1 && lastTwoDigits !== 11) {
+        return `${days} день`;
+    }
+
+    if ([2, 3, 4].includes(lastDigit) && ![12, 13, 14].includes(lastTwoDigits)) {
+        return `${days} дня`;
+    }
+
+    return `${days} дней`;
+};
+
 const topDebtors = computed(() => {
-    const debtors = summary.value?.topDebtors ?? [];
-    return debtors.map((debtor) => ({
-        ...debtor,
-        amountLabel: formatCurrency(debtor.amount)
-    }));
+    return reportStore.topDebtors.map((debtor) => {
+        const detailsParts = [
+            formatInvoiceCount(debtor.invoiceCount),
+            `Просрочка: ${formatOldestDebtDays(debtor.oldestDebtDays)}`,
+            debtor.customerInn ? `ИНН ${debtor.customerInn}` : null
+        ].filter((part): part is string => Boolean(part));
+
+        return {
+            ...debtor,
+            details: detailsParts.join(' · '),
+            totalDebtLabel: formatCurrency(debtor.totalDebt),
+            overdueDebtLabel: formatCurrency(debtor.overdueDebt)
+        };
+    });
 });
 
 const lastUpdatedLabel = computed(() => {
@@ -330,6 +488,45 @@ function handleRefresh() {
     if (!reportStore.isLoading) {
         reportStore.fetchDashboardSummary();
     }
+
+    if (!reportStore.topDebtorsLoading) {
+        reportStore.fetchTopDebtors();
+    }
+}
+
+// Функция для преобразования значений bucket в API формат
+function mapAgingBucketToApiParam(bucket: string): string {
+    const bucketMapping: Record<string, string> = {
+        '1-30 дней': '1_30',
+        '31-60 дней': '31_60',
+        '61-90 дней': '61_90',
+        '91+ дней': '91_PLUS',
+        'Current': 'current', // Current соответствует непросроченным счетам
+        '1_30': '1_30',
+        '31_60': '31_60',
+        '61_90': '61_90',
+        '91_PLUS': '91_PLUS'
+    };
+
+    return bucketMapping[bucket] || bucket;
+}
+
+async function handleAgingItemClick(agingBucket: string) {
+    const isExpanded = expandedAgingItems.value[agingBucket];
+
+    if (isExpanded) {
+        // Если элемент уже раскрыт, просто сворачиваем
+        expandedAgingItems.value[agingBucket] = false;
+    } else {
+        // Если элемент свернут, раскрываем и загружаем данные
+        expandedAgingItems.value[agingBucket] = true;
+
+        // Загружаем клиентов для этого aging bucket, если они еще не загружены
+        if (!reportStore.agingCustomers[agingBucket] && !reportStore.agingCustomersLoading[agingBucket]) {
+            const apiParam = mapAgingBucketToApiParam(agingBucket);
+            await reportStore.fetchAgingCustomers(apiParam, agingBucket);
+        }
+    }
 }
 
 const canUploadData = computed(() => {
@@ -342,6 +539,10 @@ const canUploadData = computed(() => {
 onMounted(() => {
     if (authStore.isAuthenticated && !summary.value && !reportStore.error) {
         reportStore.fetchDashboardSummary();
+    }
+
+    if (authStore.isAuthenticated && !reportStore.topDebtors.length && !reportStore.topDebtorsError) {
+        reportStore.fetchTopDebtors();
     }
 });
 </script>
@@ -655,112 +856,262 @@ onMounted(() => {
 .aging-bars {
     display: flex;
     flex-direction: column;
-    gap: 1rem;
+    gap: 1.2rem;
 }
 
-.aging-bar {
-    display: grid;
-    grid-template-columns: 120px 1fr 80px;
+.aging-item {
+    background: #ffffff;
+    border-radius: 0.875rem;
+    padding: 1.25rem;
+    border: 2px solid #cbd5e0;
+    transition: all 0.3s ease;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    cursor: pointer;
+
+    &:hover {
+        border-color: #a0aec0;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+        transform: translateY(-2px);
+    }
+
+    &.aging-item-expanded {
+        border-color: #667eea;
+        box-shadow: 0 6px 20px rgba(102, 126, 234, 0.15);
+    }
+}
+
+.aging-item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 0.85rem;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+
+.aging-item-title {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.aging-badge {
+    display: inline-block;
+    padding: 0.4rem 0.85rem;
+    border-radius: 6px;
+    font-weight: 700;
+    font-size: 0.85rem;
+    color: #fff;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+
+    &.green { background: linear-gradient(135deg, #48bb78 0%, #38a169 100%); }
+    &.yellow { background: linear-gradient(135deg, #ed8936 0%, #dd6b20 100%); }
+    &.orange { background: linear-gradient(135deg, #f56565 0%, #e53e3e 100%); }
+    &.red { background: linear-gradient(135deg, #c53030 0%, #9b2c2c 100%); }
+    &.purple { background: linear-gradient(135deg, #805ad5 0%, #6b46c1 100%); }
+}
+
+.aging-count {
+    font-size: 0.8rem;
+    color: #718096;
+    font-weight: 500;
+}
+
+.aging-item-stats {
+    display: flex;
     align-items: center;
     gap: 0.75rem;
 }
 
-.aging-label {
-    font-weight: 600;
-    color: #4a5568;
-    font-size: 0.9rem;
+.aging-expand-icon {
+    font-size: 0.8rem;
+    color: #718096;
+    transition: transform 0.3s ease, color 0.3s ease;
+    margin-left: 0.5rem;
+
+    &.rotated {
+        transform: rotate(180deg);
+        color: #667eea;
+    }
 }
 
-.aging-progress {
+.aging-amount {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #2d3748;
+}
+
+.aging-percent-badge {
     background: #edf2f7;
-    border-radius: 0.75rem;
-    height: 40px;
-    overflow: hidden;
-    display: flex;
-    align-items: center;
-}
-
-.aging-fill {
-    height: 100%;
-    display: flex;
-    align-items: center;
-    justify-content: flex-start;
-    padding: 0 1rem;
-    color: #fff;
-    font-weight: 600;
-    font-size: 0.9rem;
-    transition: width 0.4s ease;
-    min-width: 0;
-    white-space: nowrap;
-}
-
-.aging-percent {
-    font-size: 0.85rem;
-    font-weight: 600;
     color: #4a5568;
-    text-align: right;
+    padding: 0.35rem 0.75rem;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 600;
 }
 
-.aging-fill.green { background: #48bb78; }
-.aging-fill.yellow { background: #ed8936; }
-.aging-fill.orange { background: #f56565; }
-.aging-fill.red { background: #c53030; }
-.aging-fill.purple { background: #805ad5; }
+.aging-progress-bar {
+    width: 100%;
+    height: 8px;
+    background: #e2e8f0;
+    border-radius: 999px;
+    overflow: hidden;
+    position: relative;
+}
+
+.aging-progress-fill {
+    height: 100%;
+    border-radius: 999px;
+    transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+
+    &.green { background: linear-gradient(90deg, #48bb78 0%, #38a169 100%); }
+    &.yellow { background: linear-gradient(90deg, #ed8936 0%, #dd6b20 100%); }
+    &.orange { background: linear-gradient(90deg, #f56565 0%, #e53e3e 100%); }
+    &.red { background: linear-gradient(90deg, #c53030 0%, #9b2c2c 100%); }
+    &.purple { background: linear-gradient(90deg, #805ad5 0%, #6b46c1 100%); }
+}
 
 .top-debtors {
     display: flex;
     flex-direction: column;
-    gap: 0.9rem;
+    gap: 1.2rem;
+    max-height: 480px;
+    overflow-y: auto;
+    padding-right: 0.5rem;
+
+    /* Стилизация скроллбара - более заметный */
+    &::-webkit-scrollbar {
+        width: 10px;
+    }
+
+    &::-webkit-scrollbar-track {
+        background: #e2e8f0;
+        border-radius: 5px;
+        border: 1px solid #cbd5e0;
+    }
+
+    &::-webkit-scrollbar-thumb {
+        background: #a0aec0;
+        border-radius: 5px;
+        border: 1px solid #718096;
+        transition: background 0.2s ease;
+    }
+
+    &::-webkit-scrollbar-thumb:hover {
+        background: #718096;
+    }
 }
 
-.debtor-item {
-    background: #f7fafc;
-    border-radius: 0.75rem;
-    padding: 1rem 1.25rem;
+.debtor-card {
+    background: #ffffff;
+    border-radius: 0.875rem;
+    padding: 1.25rem;
+    border: 2px solid #cbd5e0;
+    transition: all 0.3s ease;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+
+    &:hover {
+        border-color: #a0aec0;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+        transform: translateY(-2px);
+    }
+}
+
+.debtor-card-header {
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.debtor-title-section {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-    transition: transform 0.2s ease, background 0.2s ease;
+    align-items: flex-start;
+    gap: 1rem;
 }
 
-.debtor-item:hover {
-    background: #edf2f7;
-    transform: translateX(4px);
-}
-
-.debtor-info {
-    display: flex;
-    align-items: center;
-    gap: 0.9rem;
-}
-
-.debtor-rank {
-    width: 38px;
-    height: 38px;
-    border-radius: 50%;
-    background: #667eea;
+.debtor-rank-badge {
+    width: 42px;
+    height: 42px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: #fff;
     display: flex;
     align-items: center;
     justify-content: center;
     font-weight: 700;
+    font-size: 1.1rem;
+    box-shadow: 0 2px 6px rgba(102, 126, 234, 0.3);
+    flex-shrink: 0;
+}
+
+.debtor-info-block {
+    flex: 1;
+    min-width: 0;
 }
 
 .debtor-name {
-    margin: 0;
-    font-weight: 600;
+    margin: 0 0 0.4rem 0;
+    font-weight: 700;
     color: #2d3748;
+    font-size: 1rem;
+    line-height: 1.3;
 }
 
-.debtor-subtitle {
+.debtor-details {
     margin: 0;
     font-size: 0.8rem;
     color: #718096;
+    line-height: 1.4;
 }
 
-.debtor-amount {
+.debtor-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+}
+
+.debtor-stat-item {
+    background: #f7fafc;
+    padding: 0.75rem 1rem;
+    border-radius: 0.65rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    border: 1px solid #e2e8f0;
+}
+
+.debtor-stat-label {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #718096;
+    font-weight: 600;
+}
+
+.debtor-stat-value {
+    font-size: 1rem;
     font-weight: 700;
-    color: #c53030;
+    color: #2d3748;
+}
+
+.debtor-stat-total {
+    .debtor-stat-value {
+        color: #2d3748;
+    }
+}
+
+.debtor-stat-overdue {
+    .debtor-stat-value {
+        color: #c53030;
+    }
+}
+
+.debtor-stat-zero {
+    .debtor-stat-value {
+        color: #38a169;
+    }
 }
 
 .full-width-card {
@@ -844,6 +1195,218 @@ onMounted(() => {
     margin: 0;
     font-size: 1rem;
     font-weight: 500;
+}
+
+/* Стили для раскрываемого контента клиентов */
+.aging-customers-container {
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid #e2e8f0;
+    animation: slideDown 0.4s ease-out;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+        max-height: 0;
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+        max-height: 1000px;
+    }
+}
+
+.aging-customers-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    color: #718096;
+    font-size: 0.9rem;
+}
+
+.aging-customers-error {
+    padding: 1.5rem;
+    text-align: center;
+    background: #fed7d7;
+    border-radius: 0.5rem;
+    border: 1px solid #feb2b2;
+
+    .error-text {
+        color: #c53030;
+        margin: 0 0 1rem 0;
+        font-size: 0.9rem;
+    }
+
+    .retry-btn {
+        background: #e53e3e;
+        color: #fff;
+        border: none;
+        border-radius: 0.375rem;
+        padding: 0.5rem 1rem;
+        font-size: 0.8rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.2s ease;
+
+        &:hover {
+            background: #c53030;
+        }
+    }
+}
+
+.aging-customers-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    max-height: 400px;
+    overflow-y: auto;
+    padding-right: 0.5rem;
+
+    &::-webkit-scrollbar {
+        width: 6px;
+    }
+
+    &::-webkit-scrollbar-track {
+        background: #f1f5f9;
+        border-radius: 3px;
+    }
+
+    &::-webkit-scrollbar-thumb {
+        background: #cbd5e0;
+        border-radius: 3px;
+        transition: background 0.2s ease;
+
+        &:hover {
+            background: #a0aec0;
+        }
+    }
+}
+
+.aging-customer-card {
+    background: #f8fafc;
+    border-radius: 0.75rem;
+    padding: 1rem;
+    border: 1px solid #e2e8f0;
+    transition: all 0.2s ease;
+
+    &:hover {
+        background: #f1f5f9;
+        border-color: #cbd5e0;
+        transform: translateY(-1px);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    }
+}
+
+.customer-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 1rem;
+    gap: 1rem;
+}
+
+.customer-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.customer-name {
+    margin: 0 0 0.5rem 0;
+    font-size: 1rem;
+    font-weight: 700;
+    color: #2d3748;
+    line-height: 1.3;
+}
+
+.customer-details {
+    margin: 0;
+    font-size: 0.8rem;
+    color: #718096;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    align-items: center;
+
+    .customer-inn {
+        background: #edf2f7;
+        color: #4a5568;
+        padding: 0.25rem 0.5rem;
+        border-radius: 0.25rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+}
+
+.customer-stats {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    min-width: 140px;
+}
+
+.stat-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    text-align: right;
+
+    &.stat-overdue .stat-value {
+        color: #c53030;
+    }
+}
+
+.stat-label {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #718096;
+    font-weight: 600;
+}
+
+.stat-value {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: #2d3748;
+}
+
+.customer-breakdown {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid #e2e8f0;
+}
+
+.breakdown-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: #ffffff;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.5rem;
+    border: 1px solid #e2e8f0;
+    font-size: 0.8rem;
+}
+
+.breakdown-label {
+    color: #718096;
+    font-weight: 600;
+}
+
+.breakdown-value {
+    color: #2d3748;
+    font-weight: 700;
+}
+
+.aging-customers-empty {
+    text-align: center;
+    color: #a0aec0;
+    font-size: 0.9rem;
+    padding: 2rem;
+    font-style: italic;
 }
 
 @media (max-width: 992px) {
