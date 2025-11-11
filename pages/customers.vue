@@ -34,7 +34,7 @@
               <tr>
                 <th>ID</th>
                 <th>Название</th>
-                <th>ИНН</th>
+                <th>УНП</th>
                 <th>Контакт</th>
                 <th>Дата Создания</th>
                 <th class="text-end">Действия</th>
@@ -126,7 +126,7 @@ function confirmDeleteCustomer(customer: Customer) {
     alert('У вас нет прав на удаление клиентов.');
     return;
   }
-  if (confirm(`Вы уверены, что хотите удалить клиента ${customer.name} (ИНН: ${customer.inn || 'N/A'})? \nПримечание: Это может быть невозможно, если у клиента есть связанные счета.`)) {
+  if (confirm(`Вы уверены, что хотите удалить клиента ${customer.name} (УНП: ${customer.inn || 'N/A'})? \nПримечание: Это может быть невозможно, если у клиента есть связанные счета.`)) {
     store.deleteCustomer(customer.id);
   }
 }

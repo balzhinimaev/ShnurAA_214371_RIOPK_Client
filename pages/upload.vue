@@ -13,7 +13,7 @@
                 <li>Должен быть корректным файлом с расширением <strong>.csv</strong>.</li>
                 <li>
                     Должен содержать следующие заголовки (чувствительны к регистру):
-                    <code>InvoiceNumber</code>, <code>CustomerName</code>, <code>CustomerINN</code>, <code>IssueDate</code>, <code>DueDate</code>, <code>TotalAmount</code>.
+                    <code>InvoiceNumber</code>, <code>CustomerName</code>, <code>CustomerUNP</code>, <code>IssueDate</code>, <code>DueDate</code>, <code>TotalAmount</code>.
                 </li>
                 <li>Необязательный заголовок: <code>PaidAmount</code>.</li>
                 <li>Даты должны быть в формате, распознаваемом сервером (например, ГГГГ-ММ-ДД или ISO 8601).</li>

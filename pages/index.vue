@@ -147,7 +147,7 @@
                                                 <div class="customer-info">
                                                     <h4 class="customer-name">{{ customer.customerName }}</h4>
                                                     <p class="customer-details">
-                                                        <span v-if="customer.customerInn" class="customer-inn">ИНН: {{ customer.customerInn }}</span>
+                                                        <span v-if="customer.customerInn" class="customer-inn">УНП: {{ customer.customerInn }}</span>
                                                         <span class="customer-invoices">{{ customer.invoiceCount }} счетов</span>
                                                         <span class="customer-oldest-days">{{ formatOldestDebtDays(customer.oldestDebtDays) }}</span>
                                                     </p>
@@ -449,7 +449,7 @@ const topDebtors = computed(() => {
         const detailsParts = [
             formatInvoiceCount(debtor.invoiceCount),
             `Просрочка: ${formatOldestDebtDays(debtor.oldestDebtDays)}`,
-            debtor.customerInn ? `ИНН ${debtor.customerInn}` : null
+            debtor.customerInn ? `УНП ${debtor.customerInn}` : null
         ].filter((part): part is string => Boolean(part));
 
         return {

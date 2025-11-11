@@ -17,11 +17,11 @@
               <input type="text" class="form-control" id="editCustomerName" v-model="editableCustomer.name" required minlength="2">
             </div>
 
-             <!-- Поле ИНН (только для чтения) -->
+             <!-- Поле УНП (только для чтения) -->
              <div class="mb-3">
-              <label for="editCustomerInn" class="form-label">ИНН:</label>
+              <label for="editCustomerInn" class="form-label">УНП:</label>
               <input type="text" class="form-control" id="editCustomerInn" :value="originalCustomer?.inn || ''" readonly disabled>
-              <div class="form-text">ИНН изменить нельзя.</div>
+              <div class="form-text">УНП изменить нельзя.</div>
             </div>
 
             <!-- Поле Контактная информация -->
