@@ -23,6 +23,8 @@ RUN echo "Building with NUXT_PUBLIC_API_BASE=${NUXT_PUBLIC_API_BASE}"
 # Запускаем сборку Nuxt
 RUN npm run build
 
-EXPOSE 3000
+EXPOSE 3002
+
+ENV PORT=3002
 
 CMD ["npm", "run", "start"]
