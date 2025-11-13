@@ -1,4 +1,10 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
+const apiBase =
+  process.env.NUXT_PUBLIC_API_BASE ||
+  process.env.API_URL ||
+  process.env.API_BASE_URL ||
+  "http://localhost:3001/api/v1";
+
 export default defineNuxtConfig({
   compatibilityDate: "2024-11-01",
   devtools: { enabled: true },
@@ -9,8 +15,7 @@ export default defineNuxtConfig({
   ],
   runtimeConfig: {
     public: {
-      apiBase:
-        process.env.NUXT_PUBLIC_API_BASE || "/api/v1", // Прокси для dev режима
+      apiBase,
     },
   },
   vite: {
