@@ -3,7 +3,7 @@
    <tr>
        <td class="text-muted small font-monospace" style="max-width: 100px; overflow: hidden; text-overflow: ellipsis;" :title="customer.id">{{ customerIdShort }}</td>
        <td>{{ customer.name }}</td>
-       <td class="font-monospace">{{ customer.inn || '–' }}</td>
+       <td class="font-monospace">{{ customer.unp || '–' }}</td>
        <td :title="customer.contactInfo || ''" style="max-width: 150px; overflow: hidden; text-overflow: ellipsis;">
            {{ customer.contactInfo || '–' }}
        </td>
@@ -25,7 +25,7 @@ import { computed } from 'vue';
 interface Customer {
     id: string;
     name: string;
-    inn?: string;
+    unp?: string; // УНП вместо inn
     contactInfo?: string | null;
     createdAt: string | Date;
     updatedAt: string | Date;

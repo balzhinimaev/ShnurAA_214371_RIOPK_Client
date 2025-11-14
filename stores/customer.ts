@@ -1,16 +1,26 @@
 // stores/customer.ts
 import { defineStore } from "pinia";
 import { useAuthStore } from "./auth";
+import type { 
+  DebtWorkRecord, 
+  CustomerDebtWorkStats, 
+  CreateDebtWorkRecordData 
+} from "~/types/customer-debt-work";
 
 // --- Типы ---
 // Тип для ответа API (один клиент)
 export interface CustomerResponse {
   id: string;
   name: string;
-  inn?: string;
+  unp?: string; // УНП - опциональное поле
   contactInfo?: string | null; // Допускаем null
   createdAt: string | Date;
   updatedAt: string | Date;
+  // Рисковость клиента (рассчитывается на бэкенде при получении списка)
+  riskScore?: number; // Оценка рисковости (0-100)
+  riskLevel?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'; // Уровень риска
+  // Статистика работы с задолженностями (может приходить из API при расширенном запросе)
+  debtWorkStats?: CustomerDebtWorkStats;
 }
 
 // Тип для пагинированного ответа API
@@ -22,13 +32,14 @@ interface PaginatedCustomersResponse {
 }
 
 // Тип для параметров запроса списка
-interface FetchCustomersParams {
+export interface FetchCustomersParams {
   limit?: number;
   offset?: number;
   sortBy?: string;
   sortOrder?: "asc" | "desc";
-  // TODO: Добавить фильтры, если нужно
-  // filter?: { name?: string; inn?: string };
+  name?: string;
+  unp?: string; // УНП для фильтрации
+  contactInfo?: string;
 }
 
 // Тип для данных обновления
@@ -45,6 +56,7 @@ interface CustomerState {
   customersPerPage: number;
   isLoading: boolean;
   error: string | null;
+  filters: FetchCustomersParams;
 }
 
 export const useCustomerStore = defineStore("customer", {
@@ -52,9 +64,10 @@ export const useCustomerStore = defineStore("customer", {
     customers: [],
     totalCustomers: 0,
     currentPage: 1,
-    customersPerPage: 10,
+    customersPerPage: 20,
     isLoading: false,
     error: null,
+    filters: {},
   }),
 
   getters: {
@@ -80,13 +93,19 @@ export const useCustomerStore = defineStore("customer", {
         return;
       }
 
+      // Объединяем параметры с текущими фильтрами
+      const mergedParams = { ...this.filters, ...params };
+
       const queryParams: Record<string, string | number> = {
-        limit: params.limit ?? this.customersPerPage,
-        offset: params.offset ?? (this.currentPage - 1) * this.customersPerPage,
+        limit: mergedParams.limit ?? this.customersPerPage,
+        offset: mergedParams.offset ?? (this.currentPage - 1) * this.customersPerPage,
       };
-      if (params.sortBy) queryParams.sortBy = params.sortBy;
-      if (params.sortOrder) queryParams.sortOrder = params.sortOrder;
-      // TODO: Добавить параметры фильтра
+      
+      if (mergedParams.sortBy) queryParams.sortBy = mergedParams.sortBy;
+      if (mergedParams.sortOrder) queryParams.sortOrder = mergedParams.sortOrder;
+      if (mergedParams.name) queryParams.name = mergedParams.name;
+      if (mergedParams.unp) queryParams.unp = mergedParams.unp;
+      if (mergedParams.contactInfo) queryParams.contactInfo = mergedParams.contactInfo;
 
       try {
         const response = await $fetch<PaginatedCustomersResponse>(
@@ -103,6 +122,7 @@ export const useCustomerStore = defineStore("customer", {
         this.totalCustomers = response.total;
         this.currentPage = Math.floor(response.offset / response.limit) + 1;
         this.customersPerPage = response.limit;
+        this.filters = mergedParams;
       } catch (err: any) {
         console.error("[CustomerStore] Error fetching customers:", err);
         this.error =
@@ -114,6 +134,16 @@ export const useCustomerStore = defineStore("customer", {
       } finally {
         this.isLoading = false;
       }
+    },
+
+    setFilters(filters: Partial<FetchCustomersParams>) {
+      this.filters = { ...this.filters, ...filters };
+      this.currentPage = 1; // Сбрасываем на первую страницу при изменении фильтров
+    },
+
+    clearFilters() {
+      this.filters = {};
+      this.currentPage = 1;
     },
 
     // --- Обновление клиента ---
@@ -216,6 +246,105 @@ export const useCustomerStore = defineStore("customer", {
       this.customersPerPage = limit;
       this.currentPage = 1; // Сброс на первую страницу
       this.fetchCustomers();
+    },
+
+    // --- Работа с задолженностями ---
+    
+    /**
+     * Получение истории работы с задолженностями клиента
+     */
+    async fetchDebtWorkHistory(
+      customerId: string,
+      params?: {
+        invoiceId?: string;
+        limit?: number;
+        offset?: number;
+        sortBy?: 'actionDate' | 'createdAt';
+        sortOrder?: 'asc' | 'desc';
+      }
+    ): Promise<{ records: DebtWorkRecord[]; stats: CustomerDebtWorkStats } | null> {
+      console.log(`[CustomerStore] Fetching debt work history for customer ${customerId}`, params);
+      const authStore = useAuthStore();
+      const config = useRuntimeConfig();
+
+      if (!authStore.token) {
+        this.error = "Не авторизован.";
+        return null;
+      }
+
+      try {
+        const queryParams: Record<string, string | number> = {};
+        if (params?.invoiceId) queryParams.invoiceId = params.invoiceId;
+        if (params?.limit) queryParams.limit = params.limit;
+        if (params?.offset !== undefined) queryParams.offset = params.offset;
+        if (params?.sortBy) queryParams.sortBy = params.sortBy;
+        if (params?.sortOrder) queryParams.sortOrder = params.sortOrder;
+
+        const response = await $fetch<{
+          records: DebtWorkRecord[];
+          stats: CustomerDebtWorkStats;
+        }>(`/customers/${customerId}/debt-work`, {
+          baseURL: config.public.apiBase,
+          method: "GET",
+          headers: { Authorization: `Bearer ${authStore.token}` },
+          params: queryParams,
+        });
+
+        console.log(`[CustomerStore] Debt work history received:`, response);
+        return response;
+      } catch (err: any) {
+        console.error(`[CustomerStore] Error fetching debt work history:`, err);
+        this.error =
+          err.data?.message ||
+          err.message ||
+          "Не удалось загрузить историю работы с задолженностями.";
+        return null;
+      }
+    },
+
+    /**
+     * Создание записи о работе с задолженностью
+     */
+    async createDebtWorkRecord(
+      customerId: string,
+      data: CreateDebtWorkRecordData
+    ): Promise<DebtWorkRecord | null> {
+      console.log(`[CustomerStore] Creating debt work record for customer ${customerId}`, data);
+      this.error = null;
+      const authStore = useAuthStore();
+      const config = useRuntimeConfig();
+
+      if (!authStore.token) {
+        this.error = "Не авторизован.";
+        return null;
+      }
+
+      try {
+        // Убираем customerId из body, так как он передается в URL
+        const { customerId: _, ...bodyData } = data;
+        
+        const response = await $fetch<DebtWorkRecord>(
+          `/customers/${customerId}/debt-work`,
+          {
+            baseURL: config.public.apiBase,
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${authStore.token}`,
+              "Content-Type": "application/json",
+            },
+            body: bodyData,
+          }
+        );
+        console.log(`[CustomerStore] Debt work record created:`, response);
+        return response;
+      } catch (err: any) {
+        console.error(`[CustomerStore] Error creating debt work record:`, err);
+        this.error =
+          err.data?.message ||
+          err.message ||
+          "Не удалось создать запись о работе с задолженностью.";
+        return null;
+      }
     },
   },
 });

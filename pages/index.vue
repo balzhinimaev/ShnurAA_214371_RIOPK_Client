@@ -61,6 +61,19 @@
             </div>
 
             <div v-else-if="summary" class="dashboard-content">
+                <!-- Блок алертов и предупреждений -->
+                <section v-if="alerts.length" class="alerts-section">
+                    <div 
+                        v-for="(alert, index) in alerts" 
+                        :key="index" 
+                        class="alert-card" 
+                        :class="'alert-' + alert.type"
+                    >
+                        <span class="alert-icon">{{ alert.icon }}</span>
+                        <p class="alert-message">{{ alert.message }}</p>
+                    </div>
+                </section>
+
                 <section class="metrics-grid">
                     <article class="metric-card total">
                         <div class="metric-header">
@@ -85,7 +98,15 @@
                             <span class="metric-label">Процент просрочки</span>
                             <span class="metric-icon">📈</span>
                         </div>
-                        <p class="metric-value">{{ overdueShareLabel }}</p>
+                        <div class="metric-value-with-indicator">
+                            <p class="metric-value">{{ overdueShareLabel }}</p>
+                            <span 
+                                class="health-badge" 
+                                :class="'health-' + overdueHealthIndicator.status"
+                            >
+                                {{ overdueHealthIndicator.icon }} {{ overdueHealthIndicator.label }}
+                            </span>
+                        </div>
                         <p class="metric-change neutral">Просрочено счетов: {{ overdueInvoiceCountLabel }}</p>
                     </article>
 
@@ -255,11 +276,245 @@
                     <div v-if="additionalMetrics.length" class="additional-metrics">
                         <div v-for="metric in additionalMetrics" :key="metric.label" class="small-metric">
                             <p class="small-metric-label">{{ metric.label }}</p>
-                            <p class="small-metric-value">{{ metric.value }}</p>
+                            <div class="small-metric-value-container">
+                                <p class="small-metric-value">{{ metric.value }}</p>
+                                <span 
+                                    v-if="metric.healthIndicator" 
+                                    class="health-badge health-badge-small" 
+                                    :class="'health-' + metric.healthIndicator.status"
+                                >
+                                    {{ metric.healthIndicator.icon }} {{ metric.healthIndicator.label }}
+                                </span>
+                            </div>
                             <p v-if="metric.hint" class="small-metric-hint">{{ metric.hint }}</p>
                         </div>
                     </div>
                     <p v-else class="empty-state">Недостаточно данных для расчёта дополнительных метрик.</p>
+                </section>
+
+                <!-- Секция со списком счетов -->
+                <section class="full-width-card invoices-section">
+                    <div class="chart-header">
+                        <h3 class="chart-title">📋 Детальный список счетов</h3>
+                        <p class="chart-subtitle">Полная информация о всех счетах с возможностью фильтрации и сортировки</p>
+                    </div>
+
+                    <!-- Фильтры -->
+                    <div class="invoices-filters">
+                        <div class="filters-row">
+                            <div class="filter-group">
+                                <label class="filter-label">Статус</label>
+                                <select 
+                                    v-model="invoiceFilters.status" 
+                                    @change="handleInvoiceFilterChange"
+                                    class="filter-select"
+                                >
+                                    <option value="">Все статусы</option>
+                                    <option value="PAID">Оплачено</option>
+                                    <option value="OVERDUE">Просрочено</option>
+                                    <option value="CURRENT">В срок</option>
+                                </select>
+                            </div>
+
+                            <div class="filter-group">
+                                <label class="filter-label">Статус работы с долгом</label>
+                                <select 
+                                    v-model="invoiceFilters.debtWorkStatus" 
+                                    @change="handleInvoiceFilterChange"
+                                    class="filter-select"
+                                >
+                                    <option value="">Все статусы</option>
+                                    <option value="CALL">Прозвон</option>
+                                    <option value="CLAIM">Претензия</option>
+                                    <option value="COURT">Суд</option>
+                                </select>
+                            </div>
+
+                            <div class="filter-group">
+                                <label class="filter-label">Менеджер</label>
+                                <input 
+                                    v-model="invoiceFilters.manager" 
+                                    @input="handleInvoiceFilterChange"
+                                    type="text" 
+                                    placeholder="Поиск по менеджеру"
+                                    class="filter-input"
+                                />
+                            </div>
+
+                            <div class="filter-group">
+                                <label class="filter-label">Просрочка (дни)</label>
+                                <div class="filter-range">
+                                    <input 
+                                        v-model.number="invoiceFilters.minDaysOverdue" 
+                                        @input="handleInvoiceFilterChange"
+                                        type="number" 
+                                        placeholder="От"
+                                        class="filter-input filter-input-small"
+                                    />
+                                    <span class="filter-separator">—</span>
+                                    <input 
+                                        v-model.number="invoiceFilters.maxDaysOverdue" 
+                                        @input="handleInvoiceFilterChange"
+                                        type="number" 
+                                        placeholder="До"
+                                        class="filter-input filter-input-small"
+                                    />
+                                </div>
+                            </div>
+
+                            <div class="filter-group">
+                                <label class="filter-label">Мин. сумма</label>
+                                <input 
+                                    v-model.number="invoiceFilters.minAmount" 
+                                    @input="handleInvoiceFilterChange"
+                                    type="number" 
+                                    placeholder="Минимальная сумма"
+                                    class="filter-input"
+                                />
+                            </div>
+
+                            <div class="filter-group">
+                                <label class="filter-label">Сортировка</label>
+                                <select 
+                                    v-model="invoiceSortBy" 
+                                    @change="handleInvoiceSortChange"
+                                    class="filter-select"
+                                >
+                                    <option value="dueDate">По дате оплаты</option>
+                                    <option value="totalAmount">По сумме</option>
+                                    <option value="outstandingAmount">По остатку</option>
+                                    <option value="invoiceNumber">По номеру</option>
+                                </select>
+                            </div>
+
+                            <div class="filter-group">
+                                <label class="filter-label">Направление</label>
+                                <select 
+                                    v-model="invoiceSortOrder" 
+                                    @change="handleInvoiceSortChange"
+                                    class="filter-select"
+                                >
+                                    <option value="desc">По убыванию</option>
+                                    <option value="asc">По возрастанию</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="filters-actions">
+                            <button 
+                                type="button" 
+                                @click="handleClearInvoiceFilters"
+                                class="filter-btn filter-btn-clear"
+                            >
+                                Очистить фильтры
+                            </button>
+                            <button 
+                                type="button" 
+                                @click="handleRefreshInvoices"
+                                class="filter-btn filter-btn-refresh"
+                                :disabled="reportStore.invoicesLoading"
+                            >
+                                <span v-if="reportStore.invoicesLoading" class="spinner-border spinner-border-sm me-2" role="status"></span>
+                                {{ reportStore.invoicesLoading ? 'Загрузка...' : 'Обновить' }}
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Состояние загрузки -->
+                    <div v-if="reportStore.invoicesLoading" class="invoices-loading">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Загрузка...</span>
+                        </div>
+                        <p>Загружаем счета...</p>
+                    </div>
+
+                    <!-- Ошибка -->
+                    <div v-else-if="reportStore.invoicesError" class="invoices-error">
+                        <p class="error-text">{{ reportStore.invoicesError }}</p>
+                        <button type="button" class="retry-btn" @click="handleRefreshInvoices">Повторить</button>
+                    </div>
+
+                    <!-- Список счетов -->
+                    <div v-else-if="reportStore.invoices.length" class="invoices-list">
+                        <div class="invoices-header">
+                            <p class="invoices-count">
+                                Найдено счетов: <strong>{{ reportStore.invoicesTotal }}</strong>
+                            </p>
+                        </div>
+
+                        <div class="invoices-table-container">
+                            <table class="invoices-table">
+                                <thead>
+                                    <tr>
+                                        <th>Номер счета</th>
+                                        <th>Клиент</th>
+                                        <th>Дата выставления</th>
+                                        <th>Срок оплаты</th>
+                                        <th>Общая сумма</th>
+                                        <th>Оплачено</th>
+                                        <th>Остаток</th>
+                                        <th>Статус</th>
+                                        <th>Менеджер</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="invoice in reportStore.invoices" :key="invoice.id" class="invoice-row">
+                                        <td class="invoice-number">{{ invoice.invoiceNumber || '—' }}</td>
+                                        <td>
+                                            <div class="customer-cell">
+                                                <div class="customer-name">{{ invoice.customer?.name || 'Не указан' }}</div>
+                                                <div class="customer-unp">УНП: {{ invoice.customer?.unp || '—' }}</div>
+                                            </div>
+                                        </td>
+                                        <td>{{ formatDate(invoice.issueDate) }}</td>
+                                        <td :class="{ 'overdue-date': isOverdue(invoice.dueDate) }">
+                                            {{ formatDate(invoice.dueDate) }}
+                                        </td>
+                                        <td class="amount-cell">{{ formatCurrency(invoice.totalAmount) }}</td>
+                                        <td class="amount-cell paid">{{ formatCurrency(invoice.paidAmount) }}</td>
+                                        <td class="amount-cell outstanding">{{ formatCurrency(invoice.outstandingAmount) }}</td>
+                                        <td>
+                                            <span class="status-badge" :class="getStatusClass(invoice.status)">
+                                                {{ getStatusLabel(invoice.status) }}
+                                            </span>
+                                            <span v-if="invoice.debtWorkStatus" class="debt-status-badge">
+                                                {{ getDebtWorkStatusLabel(invoice.debtWorkStatus) }}
+                                            </span>
+                                        </td>
+                                        <td>{{ invoice.manager || '—' }}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Пагинация -->
+                        <div class="invoices-pagination">
+                            <button 
+                                type="button"
+                                @click="handleInvoicePageChange(reportStore.invoicesCurrentPage - 1)"
+                                :disabled="reportStore.invoicesCurrentPage <= 1 || reportStore.invoicesLoading"
+                                class="pagination-btn"
+                            >
+                                Назад
+                            </button>
+                            <span class="pagination-info">
+                                Страница {{ reportStore.invoicesCurrentPage }} из {{ reportStore.invoicesTotalPages }}
+                            </span>
+                            <button 
+                                type="button"
+                                @click="handleInvoicePageChange(reportStore.invoicesCurrentPage + 1)"
+                                :disabled="reportStore.invoicesCurrentPage >= reportStore.invoicesTotalPages || reportStore.invoicesLoading"
+                                class="pagination-btn"
+                            >
+                                Вперёд
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Пустое состояние -->
+                    <div v-else class="invoices-empty">
+                        <p>Счета не найдены. Попробуйте изменить фильтры.</p>
+                    </div>
                 </section>
             </div>
 
@@ -291,7 +546,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, computed, ref } from 'vue';
+import { onMounted, onBeforeUnmount, computed, ref } from 'vue';
 import { useAuthStore } from '~/stores/auth';
 import { useReportStore } from '~/stores/report';
 
@@ -304,6 +559,19 @@ const reportStore = useReportStore();
 
 // Состояние для раскрытых aging элементов (ключ - bucket, значение - boolean)
 const expandedAgingItems = ref<Record<string, boolean>>({});
+
+// Состояние для фильтров счетов
+const invoiceFilters = ref({
+    status: '',
+    debtWorkStatus: '',
+    manager: '',
+    minDaysOverdue: undefined as number | undefined,
+    maxDaysOverdue: undefined as number | undefined,
+    minAmount: undefined as number | undefined,
+});
+
+const invoiceSortBy = ref('dueDate');
+const invoiceSortOrder = ref<'asc' | 'desc'>('desc');
 
 const summary = computed(() => reportStore.dashboardSummary);
 
@@ -328,21 +596,39 @@ const formatPercent = (value: number) => {
 
 const totalReceivables = computed(() => summary.value?.totalReceivables ?? 0);
 const overdueReceivables = computed(() => summary.value?.overdueReceivables ?? 0);
-const currentReceivables = computed(() => Math.max(totalReceivables.value - overdueReceivables.value, 0));
+const currentReceivables = computed(() => summary.value?.currentReceivables ?? Math.max(totalReceivables.value - overdueReceivables.value, 0));
 
 const agingStructure = computed(() => summary.value?.agingStructure ?? []);
 const totalAgingAmount = computed(() => agingStructure.value.reduce((sum, bucket) => sum + bucket.amount, 0));
-const totalInvoices = computed(() => agingStructure.value.reduce((sum, bucket) => sum + bucket.count, 0));
-const overdueInvoiceCount = computed(() => totalInvoices.value);
+const totalInvoices = computed(() => summary.value?.totalInvoicesCount ?? 0);
+const overdueInvoiceCount = computed(() => summary.value?.overdueInvoicesCount ?? 0);
 
 const formattedTotalReceivables = computed(() => formatCurrency(totalReceivables.value));
 const formattedOverdueReceivables = computed(() => formatCurrency(overdueReceivables.value));
 const formattedCurrentReceivables = computed(() => formatCurrency(currentReceivables.value));
-const overdueShare = computed(() => totalReceivables.value > 0 ? (overdueReceivables.value / totalReceivables.value) * 100 : 0);
+const overdueShare = computed(() => summary.value?.overduePercentage ?? (totalReceivables.value > 0 ? (overdueReceivables.value / totalReceivables.value) * 100 : 0));
 const overdueShareLabel = computed(() => formatPercent(overdueShare.value));
 const currentShare = computed(() => totalReceivables.value > 0 ? (currentReceivables.value / totalReceivables.value) * 100 : 0);
 const currentShareLabel = computed(() => formatPercent(currentShare.value));
-const overdueInvoiceCountLabel = computed(() => overdueInvoiceCount.value > 0 ? `${overdueInvoiceCount.value} счетов` : '—');
+const overdueInvoiceCountLabel = computed(() => {
+    const count = overdueInvoiceCount.value;
+    if (!Number.isFinite(count) || count <= 0) {
+        return '0 счетов';
+    }
+    
+    const lastDigit = count % 10;
+    const lastTwoDigits = count % 100;
+    
+    if (lastDigit === 1 && lastTwoDigits !== 11) {
+        return `${count} счёт`;
+    }
+    
+    if ([2, 3, 4].includes(lastDigit) && ![12, 13, 14].includes(lastTwoDigits)) {
+        return `${count} счёта`;
+    }
+    
+    return `${count} счетов`;
+});
 
 const agingColorClasses = ['green', 'yellow', 'orange', 'red', 'purple'];
 const agingData = computed(() => agingStructure.value.map((bucket, index) => {
@@ -370,21 +656,191 @@ const largestBucketShare = computed(() => (totalAgingAmount.value > 0 && largest
     ? (largestBucket.value.amount / totalAgingAmount.value) * 100
     : Number.NaN);
 
+const formatDays = (days: number) => {
+    if (!Number.isFinite(days) || days <= 0) {
+        return '—';
+    }
+    return `${days.toFixed(1)} дн.`;
+};
+
+// Health indicators - определяют состояние метрик
+type HealthStatus = 'excellent' | 'good' | 'warning' | 'danger';
+
+interface HealthIndicator {
+    status: HealthStatus;
+    label: string;
+    icon: string;
+}
+
+const getOverdueHealthStatus = (percent: number): HealthIndicator => {
+    if (percent < 10) {
+        return { status: 'excellent', label: 'Отлично', icon: '🟢' };
+    } else if (percent < 30) {
+        return { status: 'good', label: 'Нормально', icon: '🟡' };
+    } else {
+        return { status: 'danger', label: 'Требует внимания', icon: '🔴' };
+    }
+};
+
+const getTurnoverHealthStatus = (ratio: number): HealthIndicator => {
+    if (ratio > 3) {
+        return { status: 'excellent', label: 'Отлично', icon: '🟢' };
+    } else if (ratio >= 1) {
+        return { status: 'good', label: 'Нормально', icon: '🟡' };
+    } else if (ratio > 0) {
+        return { status: 'danger', label: 'Плохо', icon: '🔴' };
+    } else {
+        return { status: 'warning', label: 'Нет данных', icon: '⚪' };
+    }
+};
+
+const getPaymentDelayHealthStatus = (days: number): HealthIndicator => {
+    if (days <= 5) {
+        return { status: 'excellent', label: 'Отлично', icon: '🟢' };
+    } else if (days <= 15) {
+        return { status: 'good', label: 'Нормально', icon: '🟡' };
+    } else if (days > 0) {
+        return { status: 'danger', label: 'Плохо', icon: '🔴' };
+    } else {
+        return { status: 'excellent', label: 'Нет просрочек', icon: '🟢' };
+    }
+};
+
+const overdueHealthIndicator = computed(() => getOverdueHealthStatus(overdueShare.value));
+const turnoverHealthIndicator = computed(() => getTurnoverHealthStatus(summary.value?.turnoverRatio ?? 0));
+const paymentDelayHealthIndicator = computed(() => getPaymentDelayHealthStatus(summary.value?.averagePaymentDelayDays ?? 0));
+
+// Генерация алертов на основе данных
+interface Alert {
+    type: 'warning' | 'danger' | 'info';
+    icon: string;
+    message: string;
+}
+
+const alerts = computed(() => {
+    if (!summary.value) return [];
+    
+    const alertsList: Alert[] = [];
+    const s = summary.value;
+    
+    // Критическая просрочка
+    if (overdueShare.value > 30) {
+        alertsList.push({
+            type: 'danger',
+            icon: '🚨',
+            message: `Критический уровень просрочки: ${overdueShareLabel.value}. Требуется немедленное внимание!`
+        });
+    } else if (overdueShare.value > 10) {
+        alertsList.push({
+            type: 'warning',
+            icon: '⚠️',
+            message: `Повышенный уровень просрочки: ${overdueShareLabel.value}`
+        });
+    }
+    
+    // Много просроченных счетов
+    const overdueCount = overdueInvoiceCount.value;
+    if (overdueCount > 20) {
+        alertsList.push({
+            type: 'warning',
+            icon: '📋',
+            message: `${overdueCount} счетов просрочено. Рекомендуется провести работу с должниками`
+        });
+    }
+    
+    // Проблемы с оборачиваемостью
+    if (s.turnoverRatio > 0 && s.turnoverRatio < 1) {
+        alertsList.push({
+            type: 'danger',
+            icon: '📊',
+            message: `Низкая оборачиваемость ДЗ: ${s.turnoverRatio.toFixed(2)}. Клиенты медленно платят`
+        });
+    }
+    
+    // Старая просрочка (91+)
+    const oldestBucket = agingStructure.value.find(b => b.bucket === '91+');
+    if (oldestBucket && oldestBucket.amount > 0) {
+        alertsList.push({
+            type: 'danger',
+            icon: '🔥',
+            message: `Критическая просрочка 91+ дней: ${formatCurrency(oldestBucket.amount)} (${oldestBucket.count} счетов)`
+        });
+    }
+    
+    // Высокий процент просроченных платежей
+    if (s.overduePaymentsPercentage > 25) {
+        alertsList.push({
+            type: 'warning',
+            icon: '💸',
+            message: `${formatPercent(s.overduePaymentsPercentage)} платежей поступают с просрочкой`
+        });
+    }
+    
+    // Позитивные алерты
+    if (overdueShare.value < 10 && s.turnoverRatio > 3) {
+        alertsList.push({
+            type: 'info',
+            icon: '✅',
+            message: 'Отличные показатели! Низкая просрочка и высокая оборачиваемость'
+        });
+    }
+    
+    return alertsList;
+});
+
 const additionalMetrics = computed(() => {
     if (!summary.value) {
-        return [] as { label: string; value: string; hint?: string }[];
+        return [] as { label: string; value: string; hint?: string; healthIndicator?: HealthIndicator }[];
     }
 
+    const s = summary.value;
     const metrics = [
         {
             label: 'Количество счетов',
             value: totalInvoices.value > 0 ? totalInvoices.value.toString() : '—',
-            hint: totalInvoices.value > 0 ? 'Сумма всех записей в структуре старения' : undefined
+            hint: totalInvoices.value > 0 ? 'Общее количество неоплаченных счетов' : undefined
         },
         {
             label: 'Средняя сумма счёта',
             value: formatCurrency(averageInvoiceAmount.value),
             hint: totalInvoices.value > 0 ? 'Общая сумма задолженности / количество счетов' : undefined
+        },
+        {
+            label: 'Средний срок задержки оплаты',
+            value: formatDays(s.averagePaymentDelayDays),
+            hint: s.averagePaymentDelayDays > 0 ? 'Средний срок задержки для просроченных счетов' : undefined,
+            healthIndicator: paymentDelayHealthIndicator.value
+        },
+        {
+            label: 'Оборачиваемость ДЗ',
+            value: s.turnoverRatio > 0 ? s.turnoverRatio.toFixed(2) : '—',
+            hint: s.turnoverRatio > 0 ? 'Сколько раз ДЗ превратилась в деньги за период' : undefined,
+            healthIndicator: turnoverHealthIndicator.value
+        },
+        {
+            label: 'Выручка за период',
+            value: formatCurrency(s.periodRevenue),
+            hint: s.periodRevenue > 0 ? 'Сумма всех счетов, созданных в текущем месяце' : undefined
+        },
+        {
+            label: 'Средний срок оплаты',
+            value: formatDays(s.averagePaymentDays),
+            hint: s.averagePaymentDays > 0 ? 'Среднее время от выставления счета до оплаты' : undefined
+        },
+        {
+            label: 'Своевременные платежи',
+            value: formatCurrency(s.onTimePaymentsAmount),
+            hint: s.onTimePaymentsAmount > 0 ? 'Сумма платежей, произведенных в срок' : undefined
+        },
+        {
+            label: 'Процент просроченных платежей',
+            value: formatPercent(s.overduePaymentsPercentage),
+            hint: s.overduePaymentsPercentage > 0 ? 'Доля просроченных платежей от общей суммы' : undefined
+        },
+        {
+            label: 'Средняя ДЗ за период',
+            value: formatCurrency(s.averageReceivables),
+            hint: s.averageReceivables > 0 ? 'Средняя дебиторская задолженность за текущий месяц' : undefined
         },
         {
             label: 'Крупнейший сегмент просрочки',
@@ -395,11 +851,6 @@ const additionalMetrics = computed(() => {
             label: 'Доля крупнейшего сегмента',
             value: formatPercent(largestBucketShare.value),
             hint: largestBucket.value ? 'Часть от общего объёма просроченной задолженности' : undefined
-        },
-        {
-            label: 'Доля своевременных оплат',
-            value: currentShareLabel.value,
-            hint: currentReceivables.value > 0 ? `Сумма: ${formattedCurrentReceivables.value}` : undefined
         }
     ];
 
@@ -502,10 +953,15 @@ function mapAgingBucketToApiParam(bucket: string): string {
         '61-90 дней': '61_90',
         '91+ дней': '91_PLUS',
         'Current': 'current', // Current соответствует непросроченным счетам
+        '1-30': '1_30', // Формат без "дней"
+        '31-60': '31_60', // Формат без "дней"
+        '61-90': '61_90', // Формат без "дней"
+        '91+': '91_PLUS', // Формат без "дней"
         '1_30': '1_30',
         '31_60': '31_60',
         '61_90': '61_90',
-        '91_PLUS': '91_PLUS'
+        '91_PLUS': '91_PLUS',
+        'current': 'current' // lowercase вариант
     };
 
     return bucketMapping[bucket] || bucket;
@@ -536,6 +992,118 @@ const canUploadData = computed(() => {
     return authStore.user.roles.includes('ADMIN') || authStore.user.roles.includes('ANALYST');
 });
 
+// Функции для работы со счетами
+function formatDate(dateString: string) {
+    if (!dateString) return '—';
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return '—';
+    return date.toLocaleDateString('ru-RU', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+    });
+}
+
+function isOverdue(dueDateString: string | undefined) {
+    if (!dueDateString) return false;
+    const dueDate = new Date(dueDateString);
+    if (isNaN(dueDate.getTime())) return false;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    dueDate.setHours(0, 0, 0, 0);
+    return dueDate < today;
+}
+
+function getStatusLabel(status: string) {
+    const statusMap: Record<string, string> = {
+        'PAID': 'Оплачено',
+        'OVERDUE': 'Просрочено',
+        'CURRENT': 'В срок',
+        'PARTIAL': 'Частично оплачено',
+    };
+    return statusMap[status] || status;
+}
+
+function getStatusClass(status: string) {
+    const classMap: Record<string, string> = {
+        'PAID': 'status-paid',
+        'OVERDUE': 'status-overdue',
+        'CURRENT': 'status-current',
+        'PARTIAL': 'status-partial',
+    };
+    return classMap[status] || 'status-default';
+}
+
+function getDebtWorkStatusLabel(status: string) {
+    const statusMap: Record<string, string> = {
+        'CALL': 'Прозвон',
+        'CLAIM': 'Претензия',
+        'COURT': 'Суд',
+    };
+    return statusMap[status] || status;
+}
+
+const invoiceFilterTimeout = ref<ReturnType<typeof setTimeout> | null>(null);
+
+function handleInvoiceFilterChange() {
+    // Дебаунс для избежания множественных запросов при вводе текста
+    if (invoiceFilterTimeout.value) {
+        clearTimeout(invoiceFilterTimeout.value);
+    }
+    
+    invoiceFilterTimeout.value = setTimeout(() => {
+        const filters: any = {};
+        if (invoiceFilters.value.status) filters.status = invoiceFilters.value.status;
+        if (invoiceFilters.value.debtWorkStatus) filters.debtWorkStatus = invoiceFilters.value.debtWorkStatus;
+        if (invoiceFilters.value.manager) filters.manager = invoiceFilters.value.manager;
+        if (invoiceFilters.value.minDaysOverdue !== undefined && invoiceFilters.value.minDaysOverdue !== null) {
+            filters.minDaysOverdue = invoiceFilters.value.minDaysOverdue;
+        }
+        if (invoiceFilters.value.maxDaysOverdue !== undefined && invoiceFilters.value.maxDaysOverdue !== null) {
+            filters.maxDaysOverdue = invoiceFilters.value.maxDaysOverdue;
+        }
+        if (invoiceFilters.value.minAmount !== undefined && invoiceFilters.value.minAmount !== null) {
+            filters.minAmount = invoiceFilters.value.minAmount;
+        }
+        
+        reportStore.setInvoicesFilters(filters);
+        reportStore.fetchInvoices({ offset: 0 });
+    }, 500);
+}
+
+function handleInvoiceSortChange() {
+    reportStore.setInvoicesFilters({
+        sortBy: invoiceSortBy.value,
+        sortOrder: invoiceSortOrder.value,
+    });
+    reportStore.fetchInvoices({ offset: 0 });
+}
+
+function handleClearInvoiceFilters() {
+    invoiceFilters.value = {
+        status: '',
+        debtWorkStatus: '',
+        manager: '',
+        minDaysOverdue: undefined,
+        maxDaysOverdue: undefined,
+        minAmount: undefined,
+    };
+    invoiceSortBy.value = 'dueDate';
+    invoiceSortOrder.value = 'desc';
+    reportStore.clearInvoicesFilters();
+    reportStore.fetchInvoices({ offset: 0 });
+}
+
+function handleRefreshInvoices() {
+    reportStore.fetchInvoices();
+}
+
+function handleInvoicePageChange(page: number) {
+    if (page < 1 || page > reportStore.invoicesTotalPages) return;
+    const offset = (page - 1) * reportStore.invoicesPerPage;
+    reportStore.fetchInvoices({ offset });
+}
+
 onMounted(() => {
     if (authStore.isAuthenticated && !summary.value && !reportStore.error) {
         reportStore.fetchDashboardSummary();
@@ -544,21 +1112,36 @@ onMounted(() => {
     if (authStore.isAuthenticated && !reportStore.topDebtors.length && !reportStore.topDebtorsError) {
         reportStore.fetchTopDebtors();
     }
+
+    // Загружаем счета при монтировании компонента
+    if (authStore.isAuthenticated) {
+        reportStore.fetchInvoices();
+    }
+});
+
+onBeforeUnmount(() => {
+    // Очищаем таймер при размонтировании компонента
+    if (invoiceFilterTimeout.value) {
+        clearTimeout(invoiceFilterTimeout.value);
+    }
 });
 </script>
 
 <style scoped lang="scss">
 .dashboard-page {
     position: relative;
+    width: 100%;
+    min-height: 100%;
     padding: 2rem;
-    border-radius: 1.5rem;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 0;
+    background: linear-gradient(135deg, #c5c5c5 0%, #b9b9b9 100%);
     box-shadow: 0 20px 40px rgba(82, 95, 225, 0.25);
     color: #2d3748;
 }
 
 .dashboard-container {
-    max-width: 1100px;
+    width: 100%;
+    max-width: 100%;
     margin: 0 auto;
     display: flex;
     flex-direction: column;
@@ -1451,6 +2034,526 @@ onMounted(() => {
 
     .aging-percent {
         text-align: left;
+    }
+}
+
+/* Стили для блока алертов */
+.alerts-section {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+}
+
+.alert-card {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem 1.5rem;
+    border-radius: 0.75rem;
+    border-left: 4px solid transparent;
+    background: rgba(255, 255, 255, 0.95);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    animation: slideInDown 0.4s ease-out;
+}
+
+@keyframes slideInDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.alert-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+}
+
+.alert-icon {
+    font-size: 1.5rem;
+    flex-shrink: 0;
+}
+
+.alert-message {
+    margin: 0;
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: #2d3748;
+    flex: 1;
+}
+
+.alert-danger {
+    border-left-color: #f56565;
+    background: linear-gradient(135deg, rgba(254, 215, 215, 0.3) 0%, rgba(255, 255, 255, 0.95) 100%);
+}
+
+.alert-warning {
+    border-left-color: #ed8936;
+    background: linear-gradient(135deg, rgba(254, 235, 200, 0.3) 0%, rgba(255, 255, 255, 0.95) 100%);
+}
+
+.alert-info {
+    border-left-color: #48bb78;
+    background: linear-gradient(135deg, rgba(198, 246, 213, 0.3) 0%, rgba(255, 255, 255, 0.95) 100%);
+}
+
+/* Стили для health badges */
+.health-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.4rem 0.75rem;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    white-space: nowrap;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.08);
+    transition: transform 0.2s ease;
+}
+
+.health-badge:hover {
+    transform: scale(1.05);
+}
+
+.health-badge-small {
+    padding: 0.3rem 0.6rem;
+    font-size: 0.75rem;
+    margin-top: 0.5rem;
+}
+
+.health-excellent {
+    background: linear-gradient(135deg, #c6f6d5 0%, #9ae6b4 100%);
+    color: #22543d;
+    border: 1px solid #9ae6b4;
+}
+
+.health-good {
+    background: linear-gradient(135deg, #fef5e7 0%, #ffeaa7 100%);
+    color: #744210;
+    border: 1px solid #f6d55c;
+}
+
+.health-warning {
+    background: linear-gradient(135deg, #e2e8f0 0%, #cbd5e0 100%);
+    color: #2d3748;
+    border: 1px solid #cbd5e0;
+}
+
+.health-danger {
+    background: linear-gradient(135deg, #fed7d7 0%, #fc8181 100%);
+    color: #742a2a;
+    border: 1px solid #fc8181;
+}
+
+/* Стили для метрик с индикаторами */
+.metric-value-with-indicator {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.metric-value-with-indicator .metric-value {
+    margin: 0;
+}
+
+.small-metric-value-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.small-metric-value-container .small-metric-value {
+    margin: 0;
+}
+
+/* Адаптивность для алертов */
+@media (max-width: 768px) {
+    .alert-card {
+        padding: 0.875rem 1rem;
+        gap: 0.75rem;
+    }
+
+    .alert-icon {
+        font-size: 1.25rem;
+    }
+
+    .alert-message {
+        font-size: 0.875rem;
+    }
+
+    .health-badge {
+        font-size: 0.75rem;
+        padding: 0.35rem 0.65rem;
+    }
+}
+
+/* Стили для секции счетов */
+.invoices-section {
+    margin-top: 1.5rem;
+}
+
+.invoices-filters {
+    background: #f7fafc;
+    border-radius: 0.75rem;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    border: 1px solid #e2e8f0;
+}
+
+.filters-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.filter-label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #4a5568;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.filter-select,
+.filter-input {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #cbd5e0;
+    border-radius: 0.5rem;
+    font-size: 0.9rem;
+    background: #fff;
+    color: #2d3748;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+
+    &:focus {
+        outline: none;
+        border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+}
+
+.filter-input-small {
+    width: 100%;
+}
+
+.filter-range {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.filter-separator {
+    color: #718096;
+    font-weight: 600;
+}
+
+.filters-actions {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: flex-end;
+    padding-top: 1rem;
+    border-top: 1px solid #e2e8f0;
+}
+
+.filter-btn {
+    padding: 0.6rem 1.2rem;
+    border: none;
+    border-radius: 0.5rem;
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+
+    &:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+    }
+
+    &:hover:not(:disabled) {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+}
+
+.filter-btn-clear {
+    background: #edf2f7;
+    color: #4a5568;
+
+    &:hover:not(:disabled) {
+        background: #e2e8f0;
+    }
+}
+
+.filter-btn-refresh {
+    background: #667eea;
+    color: #fff;
+
+    &:hover:not(:disabled) {
+        background: #5a67d8;
+    }
+}
+
+.invoices-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 3rem;
+    color: #718096;
+
+    p {
+        margin-top: 1rem;
+        font-size: 0.9rem;
+    }
+}
+
+.invoices-error {
+    padding: 2rem;
+    text-align: center;
+    background: #fed7d7;
+    border-radius: 0.75rem;
+    border: 1px solid #feb2b2;
+
+    .error-text {
+        color: #c53030;
+        margin: 0 0 1rem 0;
+        font-size: 0.9rem;
+    }
+}
+
+.invoices-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.invoices-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 0.75rem;
+    border-bottom: 2px solid #e2e8f0;
+}
+
+.invoices-count {
+    margin: 0;
+    font-size: 0.9rem;
+    color: #4a5568;
+
+    strong {
+        color: #2d3748;
+        font-weight: 700;
+    }
+}
+
+.invoices-table-container {
+    overflow-x: auto;
+    border-radius: 0.75rem;
+    border: 1px solid #e2e8f0;
+}
+
+.invoices-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #fff;
+
+    thead {
+        background: #f7fafc;
+        border-bottom: 2px solid #e2e8f0;
+    }
+
+    th {
+        padding: 1rem 0.75rem;
+        text-align: left;
+        font-size: 0.8rem;
+        font-weight: 700;
+        color: #4a5568;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        white-space: nowrap;
+    }
+
+    tbody {
+        tr {
+            border-bottom: 1px solid #e2e8f0;
+            transition: background-color 0.2s ease;
+
+            &:hover {
+                background: #f7fafc;
+            }
+
+            &:last-child {
+                border-bottom: none;
+            }
+        }
+    }
+
+    td {
+        padding: 1rem 0.75rem;
+        font-size: 0.9rem;
+        color: #2d3748;
+    }
+}
+
+.invoice-number {
+    font-weight: 600;
+    color: #667eea;
+}
+
+.customer-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.customer-name {
+    font-weight: 600;
+    color: #2d3748;
+}
+
+.customer-unp {
+    font-size: 0.8rem;
+    color: #718096;
+}
+
+.overdue-date {
+    color: #c53030;
+    font-weight: 600;
+}
+
+.amount-cell {
+    text-align: right;
+    font-weight: 600;
+
+    &.paid {
+        color: #2f855a;
+    }
+
+    &.outstanding {
+        color: #c53030;
+    }
+}
+
+.status-badge {
+    display: inline-block;
+    padding: 0.25rem 0.6rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-right: 0.5rem;
+
+    &.status-paid {
+        background: #c6f6d5;
+        color: #22543d;
+    }
+
+    &.status-overdue {
+        background: #fed7d7;
+        color: #742a2a;
+    }
+
+    &.status-current {
+        background: #bee3f8;
+        color: #2c5282;
+    }
+
+    &.status-partial {
+        background: #fef5e7;
+        color: #744210;
+    }
+
+    &.status-default {
+        background: #e2e8f0;
+        color: #4a5568;
+    }
+}
+
+.debt-status-badge {
+    display: inline-block;
+    padding: 0.25rem 0.6rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    background: #edf2f7;
+    color: #4a5568;
+}
+
+.invoices-pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 1rem;
+    padding: 1.5rem 0;
+    border-top: 1px solid #e2e8f0;
+}
+
+.pagination-btn {
+    padding: 0.6rem 1.2rem;
+    border: 1px solid #cbd5e0;
+    border-radius: 0.5rem;
+    background: #fff;
+    color: #4a5568;
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+
+    &:hover:not(:disabled) {
+        background: #f7fafc;
+        border-color: #a0aec0;
+        transform: translateY(-1px);
+    }
+
+    &:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+}
+
+.pagination-info {
+    font-size: 0.9rem;
+    color: #718096;
+    font-weight: 500;
+}
+
+.invoices-empty {
+    text-align: center;
+    padding: 3rem;
+    color: #718096;
+    font-size: 0.9rem;
+}
+
+@media (max-width: 768px) {
+    .filters-row {
+        grid-template-columns: 1fr;
+    }
+
+    .filters-actions {
+        flex-direction: column;
+    }
+
+    .invoices-table-container {
+        overflow-x: scroll;
+    }
+
+    .invoices-table {
+        min-width: 800px;
     }
 }
 </style>

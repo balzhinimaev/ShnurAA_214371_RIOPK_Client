@@ -52,10 +52,75 @@ interface AgingCustomersResponse {
   };
 }
 
+export interface InvoiceCustomer {
+  id: string;
+  name: string;
+  unp: string;
+  userId?: string;
+}
+
+export interface Invoice {
+  id: string;
+  invoiceNumber: string;
+  customerId: string;
+  customer?: InvoiceCustomer;
+  issueDate: string;
+  dueDate: string;
+  serviceStartDate?: string;
+  serviceEndDate?: string;
+  totalAmount: number;
+  paidAmount: number;
+  outstandingAmount: number;
+  paymentTermDays?: number;
+  actualPaymentDate?: string;
+  status: string;
+  debtWorkStatus?: string;
+  serviceType?: string;
+  manager?: string;
+  contractNumber?: string;
+  notes?: string;
+  lastContactDate?: string;
+  contactResult?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface PaginatedInvoicesResponse {
+  invoices: Invoice[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface FetchInvoicesParams {
+  limit?: number;
+  offset?: number;
+  customerId?: string;
+  status?: string;
+  debtWorkStatus?: string;
+  minDaysOverdue?: number;
+  maxDaysOverdue?: number;
+  minAmount?: number;
+  manager?: string;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
+}
+
 interface DashboardSummary {
   totalReceivables: number;
   overdueReceivables: number;
+  overduePercentage: number;
+  currentReceivables: number;
+  averagePaymentDelayDays: number;
+  totalInvoicesCount: number;
+  overdueInvoicesCount: number;
   agingStructure: AgingBucket[];
+  averageReceivables: number;
+  turnoverRatio: number;
+  periodRevenue: number;
+  averagePaymentDays: number;
+  onTimePaymentsAmount: number;
+  overduePaymentsPercentage: number;
   topDebtors?: TopDebtor[];
   lastUpdatedAt?: string;
 }
@@ -71,6 +136,13 @@ interface ReportState {
   agingCustomers: Record<string, AgingCustomer[]>;
   agingCustomersLoading: Record<string, boolean>;
   agingCustomersError: Record<string, string | null>;
+  invoices: Invoice[];
+  invoicesTotal: number;
+  invoicesCurrentPage: number;
+  invoicesPerPage: number;
+  invoicesLoading: boolean;
+  invoicesError: string | null;
+  invoicesFilters: FetchInvoicesParams;
 }
 
 export const useReportStore = defineStore("report", {
@@ -84,6 +156,13 @@ export const useReportStore = defineStore("report", {
     agingCustomers: {},
     agingCustomersLoading: {},
     agingCustomersError: {},
+    invoices: [],
+    invoicesTotal: 0,
+    invoicesCurrentPage: 1,
+    invoicesPerPage: 20,
+    invoicesLoading: false,
+    invoicesError: null,
+    invoicesFilters: {},
   }),
 
   getters: {
@@ -117,6 +196,10 @@ export const useReportStore = defineStore("report", {
         style: "currency",
         currency: "RUB",
       });
+    },
+    invoicesTotalPages: (state) => {
+      if (state.invoicesTotal === 0 || state.invoicesPerPage <= 0) return 1;
+      return Math.ceil(state.invoicesTotal / state.invoicesPerPage);
     },
   },
 
@@ -266,6 +349,89 @@ export const useReportStore = defineStore("report", {
       } finally {
         this.topDebtorsLoading = false;
       }
+    },
+
+    async fetchInvoices(params: FetchInvoicesParams = {}) {
+      console.log("[ReportStore] Fetching invoices with params:", params);
+      this.invoicesLoading = true;
+      this.invoicesError = null;
+
+      const authStore = useAuthStore();
+      const config = useRuntimeConfig();
+
+      if (!authStore.isAuthenticated || !authStore.token) {
+        this.invoicesLoading = false;
+        this.invoicesError = "Пользователь не аутентифицирован.";
+        console.error("[ReportStore] Cannot load invoices: user not authenticated.");
+        this.invoices = [];
+        this.invoicesTotal = 0;
+        return;
+      }
+
+      // Объединяем параметры с текущими фильтрами
+      const mergedParams = { ...this.invoicesFilters, ...params };
+      
+      // Формируем query параметры
+      const queryParams: Record<string, string | number> = {
+        limit: mergedParams.limit ?? this.invoicesPerPage,
+        offset: mergedParams.offset ?? (this.invoicesCurrentPage - 1) * this.invoicesPerPage,
+      };
+
+      if (mergedParams.customerId) queryParams.customerId = mergedParams.customerId;
+      if (mergedParams.status) queryParams.status = mergedParams.status;
+      if (mergedParams.debtWorkStatus) queryParams.debtWorkStatus = mergedParams.debtWorkStatus;
+      if (mergedParams.minDaysOverdue !== undefined) queryParams.minDaysOverdue = mergedParams.minDaysOverdue;
+      if (mergedParams.maxDaysOverdue !== undefined) queryParams.maxDaysOverdue = mergedParams.maxDaysOverdue;
+      if (mergedParams.minAmount !== undefined) queryParams.minAmount = mergedParams.minAmount;
+      if (mergedParams.manager) queryParams.manager = mergedParams.manager;
+      if (mergedParams.sortBy) queryParams.sortBy = mergedParams.sortBy;
+      if (mergedParams.sortOrder) queryParams.sortOrder = mergedParams.sortOrder;
+
+      try {
+        const response = await $fetch<PaginatedInvoicesResponse>(
+          `/reports/invoices`,
+          {
+            baseURL: config.public.apiBase,
+            method: "GET",
+            headers: {
+              Authorization: `Bearer ${authStore.token}`,
+            },
+            params: queryParams,
+          }
+        );
+
+        console.log("[ReportStore] Invoices received:", response);
+        this.invoices = response.invoices;
+        this.invoicesTotal = response.total;
+        this.invoicesCurrentPage = Math.floor(response.offset / response.limit) + 1;
+        this.invoicesPerPage = response.limit;
+        this.invoicesFilters = mergedParams;
+      } catch (err: any) {
+        console.error("[ReportStore] Error fetching invoices:", err);
+        if (err.response?.status === 403) {
+          this.invoicesError =
+            "Доступ запрещен: у вас нет прав для просмотра списка счетов.";
+        } else {
+          this.invoicesError =
+            err.data?.message ||
+            err.message ||
+            "Не удалось загрузить список счетов.";
+        }
+        this.invoices = [];
+        this.invoicesTotal = 0;
+      } finally {
+        this.invoicesLoading = false;
+      }
+    },
+
+    setInvoicesFilters(filters: Partial<FetchInvoicesParams>) {
+      this.invoicesFilters = { ...this.invoicesFilters, ...filters };
+      this.invoicesCurrentPage = 1; // Сбрасываем на первую страницу при изменении фильтров
+    },
+
+    clearInvoicesFilters() {
+      this.invoicesFilters = {};
+      this.invoicesCurrentPage = 1;
     },
   },
 });

@@ -201,6 +201,12 @@ const isCurrentUser = computed(() => (userId: string) => {
 </script>
 
 <style scoped lang="scss">
+.admin-users-page {
+    width: 100%;
+    max-width: 100%;
+    padding: 0 1rem;
+}
+
 .admin-users-table {
     th {
         font-weight: 500;

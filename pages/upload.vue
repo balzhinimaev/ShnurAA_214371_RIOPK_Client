@@ -1,9 +1,9 @@
 // pages/upload.vue
 <template>
     <div class="upload-container">
-        <h1 class="mb-3">Загрузка данных по счетам</h1>
+        <h1 class="mb-3">Загрузка счетов из 1С</h1>
         <p class="lead mb-4">
-            Выберите <strong>CSV файл</strong>, содержащий данные по счетам, для загрузки в систему.
+            Выберите <strong>CSV файл</strong> в формате 1С, содержащий данные по счетам, для загрузки в систему.
         </p>
 
         <div class="alert alert-info" role="alert">
@@ -11,20 +11,69 @@
             <p>Убедитесь, что ваш CSV файл соответствует следующим критериям:</p>
             <ul>
                 <li>Должен быть корректным файлом с расширением <strong>.csv</strong>.</li>
+                <li>Кодировка файла: <strong>UTF-8</strong>.</li>
+                <li>Максимальный размер файла: <strong>10 МБ</strong>.</li>
                 <li>
-                    Должен содержать следующие заголовки (чувствительны к регистру):
-                    <code>InvoiceNumber</code>, <code>CustomerName</code>, <code>CustomerUNP</code>, <code>IssueDate</code>, <code>DueDate</code>, <code>TotalAmount</code>.
+                    <strong>Обязательные заголовки</strong> (чувствительны к регистру):
+                    <code>Дата_начала_услуги</code>, <code>Дата_окончания_услуги</code>, <code>Номер_акта</code>, 
+                    <code>Контрагент</code>, <code>ИНН</code>, <code>Сумма_к_оплате</code>, <code>Дата_планируемой_оплаты</code>.
                 </li>
-                <li>Необязательный заголовок: <code>PaidAmount</code>.</li>
-                <li>Даты должны быть в формате, распознаваемом сервером (например, ГГГГ-ММ-ДД или ISO 8601).</li>
+                <li>
+                    <strong>Опциональные заголовки</strong>: 
+                    <code>Договор</code>, <code>Тип_услуги</code>, <code>Срок_оплаты_дней</code>, 
+                    <code>Сумма_оплачено</code>, <code>Дата_фактической_оплаты</code>, 
+                    <code>Остаток_задолженности</code>, <code>Менеджер</code>, <code>Примечание</code>.
+                </li>
+                <li>Даты должны быть в формате <code>dd.MM.yyyy</code> (например, <code>15.01.2024</code>).</li>
+                <li>Суммы могут использовать точку или запятую как разделитель дробной части.</li>
             </ul>
+            <div class="mt-3">
+                <strong>Поддерживаемые типы услуг</strong> (для поля <code>Тип_услуги</code>):
+                <ul class="mb-0 mt-1">
+                    <li><code>Сопровождение ПКТ</code> → PKT_SUPPORT</li>
+                    <li><code>Установка ККТ</code> → KKT_INSTALLATION</li>
+                    <li><code>Обслуживание ККТ</code> → KKT_SERVICE</li>
+                    <li><code>Обслуживание торг. автоматов</code> → VENDING_SERVICE</li>
+                    <li><code>Установка торг. автомата</code> → VENDING_INSTALLATION</li>
+                    <li>Любое другое значение → OTHER</li>
+                </ul>
+                <small class="text-muted">Маппинг нечувствителен к регистру.</small>
+            </div>
         </div>
 
         <!-- Сообщения об успехе/ошибке -->
         <div v-if="uploadFeedback.message" :class="['alert', uploadFeedback.type === 'success' ? 'alert-success' : 'alert-danger', 'mt-4']" role="alert">
             <strong>{{ uploadFeedback.type === 'success' ? 'Успешно!' : 'Ошибка:' }}</strong> {{ uploadFeedback.message }}
             <!-- Показ деталей/статистики при успехе -->
-            <pre v-if="uploadFeedback.type === 'success' && uploadFeedback.details" class="mt-2 small bg-light p-2 border rounded">{{ JSON.stringify(uploadFeedback.details, null, 2) }}</pre>
+            <div v-if="uploadFeedback.type === 'success' && uploadFeedback.details" class="mt-3">
+                <h6 class="mb-2">Статистика обработки:</h6>
+                <ul class="mb-2" v-if="uploadFeedback.details">
+                    <li v-if="uploadFeedback.details.totalRows !== undefined">
+                        <strong>Всего строк в файле:</strong> {{ uploadFeedback.details.totalRows }}
+                    </li>
+                    <li v-if="uploadFeedback.details.processedRows !== undefined">
+                        <strong>Обработано строк:</strong> {{ uploadFeedback.details.processedRows }}
+                    </li>
+                    <li v-if="uploadFeedback.details.createdCustomers !== undefined">
+                        <strong>Создано клиентов:</strong> {{ uploadFeedback.details.createdCustomers }}
+                    </li>
+                    <li v-if="uploadFeedback.details.createdInvoices !== undefined">
+                        <strong>Создано счетов:</strong> {{ uploadFeedback.details.createdInvoices }}
+                    </li>
+                    <li v-if="uploadFeedback.details.updatedInvoices !== undefined">
+                        <strong>Обновлено счетов:</strong> {{ uploadFeedback.details.updatedInvoices }}
+                    </li>
+                    <li v-if="uploadFeedback.details.skippedRows !== undefined">
+                        <strong>Пропущено строк:</strong> {{ uploadFeedback.details.skippedRows }}
+                    </li>
+                </ul>
+                <div v-if="uploadFeedback.details.errors && uploadFeedback.details.errors.length > 0" class="mt-2">
+                    <h6 class="mb-2 text-warning">Ошибки при обработке:</h6>
+                    <ul class="small mb-0">
+                        <li v-for="(error, index) in uploadFeedback.details.errors" :key="index">{{ error }}</li>
+                    </ul>
+                </div>
+            </div>
         </div>
 
         <!-- Форма загрузки -->
@@ -58,7 +107,7 @@
                 <!-- Кнопка отправки -->
                 <button type="submit" class="btn btn-primary" :disabled="!selectedFile || isUploading || !!fileError">
                     <span v-if="isUploading" class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
-                    {{ isUploading ? 'Загрузка...' : 'Загрузить счета' }}
+                    {{ isUploading ? 'Загрузка...' : 'Загрузить счета из 1С' }}
                 </button>
             </fieldset>
         </form>
@@ -83,17 +132,27 @@ import { ref, reactive } from 'vue';
 import { useAuthStore } from '~/stores/auth';
 import type { Ref } from 'vue';
 
+// Определяем тип для деталей ответа API
+interface UploadResponseDetails {
+    totalRows?: number;
+    processedRows?: number;
+    createdCustomers?: number;
+    createdInvoices?: number;
+    updatedInvoices?: number;
+    skippedRows?: number;
+    errors?: string[];
+}
+
 // Определяем тип для объекта обратной связи
 interface UploadFeedback {
     type: 'success' | 'error' | null;
     message: string | null;
-    details?: object | null; // Для доп. информации при успехе (статистика)
+    details?: UploadResponseDetails | null; // Для доп. информации при успехе (статистика)
 }
 
 // --- Middleware и Store ---
 definePageMeta({
-    middleware: ['auth'] // Доступ только для авторизованных
-    // Рекомендуется добавить middleware проверки ролей: ['auth', 'can-upload']
+    middleware: ['auth', 'admin-analyst-only'] // Доступ только для авторизованных с ролью ADMIN или ANALYST
 });
 
 const authStore = useAuthStore();
@@ -134,6 +193,8 @@ function handleFileSelection(event: Event) {
 
     if (target.files && target.files.length > 0) {
         const file = target.files[0];
+        const maxSizeBytes = 10 * 1024 * 1024; // 10 МБ
+        
         // Проверка типа файла на клиенте
         if (file.type !== 'text/csv' && !file.name.toLowerCase().endsWith('.csv')) {
             fileError.value = 'Неверный тип файла. Пожалуйста, выберите CSV файл.';
@@ -142,9 +203,16 @@ function handleFileSelection(event: Event) {
              if (fileInputRef.value) {
                 fileInputRef.value.value = '';
             }
+        } else if (file.size > maxSizeBytes) {
+            fileError.value = `Размер файла превышает максимально допустимый (10 МБ). Размер файла: ${formatBytes(file.size)}.`;
+            selectedFile.value = null;
+            if (fileInputRef.value) {
+                fileInputRef.value.value = '';
+            }
         } else {
             selectedFile.value = file;
-            console.log('Выбран файл:', file.name);
+            fileError.value = null;
+            console.log('Выбран файл:', file.name, `(${formatBytes(file.size)})`);
         }
     } else {
         selectedFile.value = null;
@@ -179,11 +247,20 @@ async function handleFileUpload() {
     const formData = new FormData();
     formData.append('file', selectedFile.value, selectedFile.value.name); // 'file' - имя поля из API
 
-    console.log(`Загрузка файла счетов: ${selectedFile.value.name}...`);
+    console.log(`Загрузка файла счетов из 1С: ${selectedFile.value.name}...`);
 
     try {
-        // Выполняем запрос к API
-        const response = await $fetch<any>(`/data-uploads/invoices`, { // Типизируйте ответ точнее, если возможно
+        // Выполняем запрос к API для загрузки счетов из 1С
+        const response = await $fetch<{
+            message: string;
+            totalRows?: number;
+            processedRows?: number;
+            createdCustomers?: number;
+            createdInvoices?: number;
+            updatedInvoices?: number;
+            skippedRows?: number;
+            errors?: string[];
+        }>(`/data-uploads/1c-invoices`, {
             baseURL: config.public.apiBase,
             method: 'POST',
             headers: {
@@ -203,7 +280,7 @@ async function handleFileUpload() {
         if (response && typeof response === 'object') {
             const { message, ...details } = response;
             if (Object.keys(details).length > 0) {
-                uploadFeedback.details = details;
+                uploadFeedback.details = details as UploadResponseDetails;
             }
         }
 
@@ -261,8 +338,10 @@ function formatBytes(bytes: number, decimals = 2): string {
 
 <style scoped lang="scss">
 .upload-container {
-    max-width: 800px;
-    margin: auto;
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+    padding: 0 1rem;
 }
 
 fieldset:disabled {
