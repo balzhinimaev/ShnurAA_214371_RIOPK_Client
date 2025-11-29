@@ -29,7 +29,7 @@
             <div class="spinner-grow text-light" role="status">
               <span class="visually-hidden">Загрузка...</span>
             </div>
-            <p class="loading-text">Загружаем список клиентов...</p>
+            <p class="loading-text">Загружаем список дебиторов...</p>
           </div>
         </div>
 
@@ -59,10 +59,10 @@
                   <label class="filter-label">Поиск по названию</label>
                   <input 
                     v-model="customerFilters.name" 
-                    @input="handleFilterChange"
                     type="text" 
                     placeholder="Введите название дебитора"
                     class="filter-input"
+                    @keyup.enter="handleApplyFilters"
                   />
                 </div>
 
@@ -70,10 +70,10 @@
                   <label class="filter-label">Поиск по УНП</label>
                   <input 
                     v-model="customerFilters.unp" 
-                    @input="handleFilterChange"
                     type="text" 
                     placeholder="Введите УНП"
                     class="filter-input"
+                    @keyup.enter="handleApplyFilters"
                   />
                 </div>
 
@@ -81,10 +81,10 @@
                   <label class="filter-label">Поиск по контакту</label>
                   <input 
                     v-model="customerFilters.contactInfo" 
-                    @input="handleFilterChange"
                     type="text" 
                     placeholder="Введите контактную информацию"
                     class="filter-input"
+                    @keyup.enter="handleApplyFilters"
                   />
                 </div>
 
@@ -92,7 +92,6 @@
                   <label class="filter-label">Сортировка</label>
                   <select 
                     v-model="customerSortBy" 
-                    @change="handleSortChange"
                     class="filter-select"
                   >
                     <option value="name">По названию</option>
@@ -106,7 +105,6 @@
                   <label class="filter-label">Направление</label>
                   <select 
                     v-model="customerSortOrder" 
-                    @change="handleSortChange"
                     class="filter-select"
                   >
                     <option value="asc">По возрастанию</option>
@@ -118,16 +116,24 @@
               <div class="filters-actions">
                 <button 
                   type="button" 
+                  @click="handleApplyFilters"
+                  class="filter-btn filter-btn-apply"
+                  :disabled="store.isLoading"
+                >
+                  🔍 Применить
+                </button>
+                <button 
+                  type="button" 
                   @click="handleClearFilters"
                   class="filter-btn filter-btn-clear"
                 >
-                  Очистить фильтры
+                  Сбросить фильтры
                 </button>
               </div>
             </div>
           </section>
 
-          <!-- Список клиентов -->
+          <!-- Список дебиторов -->
           <section class="full-width-card customers-list-section">
             <div class="chart-header">
               <h3 class="chart-title">📋 Список дебиторов</h3>
@@ -141,9 +147,11 @@
                   <tr>
                     <th>Название</th>
                     <th>УНП</th>
-                    <th>Контактная информация</th>
+                    <th>Общий долг</th>
+                    <th>Просрочено</th>
+                    <th>Оценка</th>
                     <th>Рисковость</th>
-                    <th>Дата создания</th>
+                    <th>Контакты</th>
                     <th class="text-end">Действия</th>
                   </tr>
                 </thead>
@@ -156,10 +164,24 @@
                     <td class="customer-inn-cell">
                       <span class="inn-badge">{{ customer.unp || '—' }}</span>
                     </td>
-                    <td class="customer-contact-cell">
-                      <span :title="customer.contactInfo || ''">
-                        {{ customer.contactInfo || '—' }}
+                    <td class="customer-debt-cell">
+                      {{ formatCurrency(customer.totalDebt) }}
+                    </td>
+                    <td class="customer-overdue-cell">
+                      <span :class="{ 'text-danger fw-bold': customer.overdueDebt && customer.overdueDebt > 0 }">
+                        {{ formatCurrency(customer.overdueDebt) }}
                       </span>
+                    </td>
+                    <td class="customer-rating-cell">
+                      <span 
+                        v-if="customer.paymentRating && customer.paymentRating.grade" 
+                        class="payment-grade-badge"
+                        :class="'grade-' + customer.paymentRating.grade.toLowerCase()"
+                        :title="customer.paymentRating.description"
+                      >
+                        {{ customer.paymentRating.grade }}
+                      </span>
+                      <span v-else class="text-muted">—</span>
                     </td>
                     <td class="customer-risk-cell">
                       <div v-if="getCustomerRiskLevel(customer)" class="risk-info">
@@ -180,8 +202,10 @@
                       </div>
                       <span v-else class="text-muted">—</span>
                     </td>
-                    <td class="customer-date-cell">
-                      {{ formatDate(customer.createdAt) }}
+                    <td class="customer-contact-cell">
+                      <span :title="customer.contactInfo || ''">
+                        {{ customer.contactInfo || '—' }}
+                      </span>
                     </td>
                     <td class="customer-actions-cell">
                       <div class="actions-buttons">
@@ -265,7 +289,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useCustomerStore } from '~/stores/customer';
 import { useAuthStore } from '~/stores/auth';
 import type { CustomerResponse as Customer } from '~/stores/customer';
@@ -297,6 +321,16 @@ const canDelete = computed(() => {
 });
 
 // Функции форматирования
+function formatCurrency(value: number | undefined): string {
+  if (value === undefined || value === null || !Number.isFinite(value)) return '—';
+  return value.toLocaleString('ru-RU', {
+    style: 'currency',
+    currency: 'RUB',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0
+  });
+}
+
 function formatDate(dateString: string | Date) {
   if (!dateString) return '—';
   try {
@@ -370,30 +404,17 @@ function getCustomerRiskTooltip(customer: Customer): string {
   return parts.length > 0 ? parts.join(' • ') : '';
 }
 
-// Дебаунс для фильтров
-const filterTimeout = ref<ReturnType<typeof setTimeout> | null>(null);
-
-function handleFilterChange() {
-  if (filterTimeout.value) {
-    clearTimeout(filterTimeout.value);
-  }
-  
-  filterTimeout.value = setTimeout(() => {
-    const filters: any = {};
-    if (customerFilters.value.name) filters.name = customerFilters.value.name;
-    if (customerFilters.value.unp) filters.unp = customerFilters.value.unp;
-    if (customerFilters.value.contactInfo) filters.contactInfo = customerFilters.value.contactInfo;
-    
-    store.setFilters(filters);
-    store.fetchCustomers({ offset: 0 });
-  }, 500);
-}
-
-function handleSortChange() {
-  store.setFilters({
+// Применение фильтров по кнопке
+function handleApplyFilters() {
+  const filters: any = {
     sortBy: customerSortBy.value,
     sortOrder: customerSortOrder.value,
-  });
+  };
+  if (customerFilters.value.name) filters.name = customerFilters.value.name;
+  if (customerFilters.value.unp) filters.unp = customerFilters.value.unp;
+  if (customerFilters.value.contactInfo) filters.contactInfo = customerFilters.value.contactInfo;
+  
+  store.setFilters(filters);
   store.fetchCustomers({ offset: 0 });
 }
 
@@ -454,12 +475,6 @@ function confirmDeleteCustomer(customer: Customer) {
 onMounted(() => {
   store.currentPage = 1;
   store.fetchCustomers();
-});
-
-onBeforeUnmount(() => {
-  if (filterTimeout.value) {
-    clearTimeout(filterTimeout.value);
-  }
 });
 </script>
 
@@ -711,6 +726,20 @@ onBeforeUnmount(() => {
   }
 }
 
+.filter-btn-apply {
+  background: #667eea;
+  color: #fff;
+
+  &:hover:not(:disabled) {
+    background: #5a67d8;
+  }
+
+  &:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+  }
+}
+
 .filter-btn-clear {
   background: #edf2f7;
   color: #4a5568;
@@ -858,6 +887,59 @@ onBeforeUnmount(() => {
   color: #718096;
   font-weight: 500;
   cursor: help;
+}
+
+/* Новые стили для Фазы 2 */
+.customer-debt-cell,
+.customer-overdue-cell {
+  text-align: right;
+  font-weight: 600;
+}
+
+.customer-rating-cell {
+  text-align: center;
+}
+
+.payment-grade-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  font-weight: 800;
+  font-size: 1rem;
+  cursor: help;
+}
+
+.payment-grade-badge.grade-a {
+  background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+  color: #065f46;
+  border: 2px solid #10b981;
+}
+
+.payment-grade-badge.grade-b {
+  background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+  color: #1e40af;
+  border: 2px solid #3b82f6;
+}
+
+.payment-grade-badge.grade-c {
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  color: #92400e;
+  border: 2px solid #f59e0b;
+}
+
+.payment-grade-badge.grade-d {
+  background: linear-gradient(135deg, #fed7aa 0%, #fdba74 100%);
+  color: #9a3412;
+  border: 2px solid #f97316;
+}
+
+.payment-grade-badge.grade-f {
+  background: linear-gradient(135deg, #fecaca 0%, #fca5a5 100%);
+  color: #991b1b;
+  border: 2px solid #ef4444;
 }
 
 .customer-actions-cell {

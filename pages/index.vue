@@ -150,7 +150,7 @@
                                     ></div>
                                 </div>
 
-                                <!-- Раскрываемый контент с клиентами -->
+                                <!-- Раскрываемый контент с дебиторами -->
                                 <div v-if="expandedAgingItems[aging.bucket]" class="aging-customers-container">
                                     <!-- Состояние загрузки -->
                                     <div v-if="reportStore.agingCustomersLoading[aging.bucket]" class="aging-customers-loading">
@@ -293,6 +293,396 @@
                         </div>
                     </div>
                     <p v-else class="empty-state">Недостаточно данных для расчёта дополнительных метрик.</p>
+                </section>
+
+                <!-- ============================================= -->
+                <!-- === СЕКЦИИ ФАЗЫ 3: Аналитические инструменты === -->
+                <!-- ============================================= -->
+
+                <!-- Секция: Динамика ДЗ -->
+                <section class="full-width-card dynamics-section">
+                    <div class="chart-header">
+                        <div class="chart-header-left">
+                            <h3 class="chart-title">📈 Динамика дебиторской задолженности</h3>
+                            <p class="chart-subtitle">Изменение общей и просроченной ДЗ по месяцам</p>
+                        </div>
+                        <div class="chart-header-right" v-if="dynamicsTrendSummary">
+                            <span 
+                                class="trend-badge" 
+                                :class="getTrendClass(dynamicsTrendSummary.trend)"
+                            >
+                                {{ dynamicsTrendSummary.trendIcon }} {{ dynamicsTrendSummary.trendLabel }}
+                            </span>
+                            <span class="period-badge">
+                                {{ dynamicsTrendSummary.startPeriod }} — {{ dynamicsTrendSummary.endPeriod }}
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Состояние загрузки -->
+                    <div v-if="reportStore.receivablesDynamicsLoading" class="section-loading">
+                        <div class="spinner-border text-primary" role="status"></div>
+                        <p>Загружаем данные динамики...</p>
+                    </div>
+
+                    <!-- Ошибка -->
+                    <div v-else-if="reportStore.receivablesDynamicsError" class="section-error">
+                        <p class="error-text">{{ reportStore.receivablesDynamicsError }}</p>
+                        <button type="button" class="retry-btn" @click="reportStore.fetchReceivablesDynamics()">Повторить</button>
+                    </div>
+
+                    <!-- График динамики -->
+                    <div v-else-if="dynamicsChartData" class="dynamics-chart-container">
+                        <div class="dynamics-legend">
+                            <div class="legend-item">
+                                <span class="legend-color" style="background: #4299e1;"></span>
+                                <span class="legend-label">Общая ДЗ</span>
+                            </div>
+                            <div class="legend-item">
+                                <span class="legend-color" style="background: #f56565;"></span>
+                                <span class="legend-label">Просроченная ДЗ</span>
+                            </div>
+                        </div>
+                        
+                        <div class="dynamics-chart">
+                            <!-- Ось Y -->
+                            <div class="chart-y-axis">
+                                <span v-for="tick in getYAxisTicks(dynamicsChartData)" :key="tick" class="y-tick">
+                                    {{ formatCompactCurrency(tick) }}
+                                </span>
+                            </div>
+                            
+                            <!-- Столбцы графика -->
+                            <div class="chart-bars">
+                                <div 
+                                    v-for="(label, index) in dynamicsChartData.labels" 
+                                    :key="label" 
+                                    class="chart-bar-group"
+                                >
+                                    <div class="bar-container">
+                                        <div 
+                                            class="bar bar-total"
+                                            :style="{ height: getBarHeight(dynamicsChartData.totalDebtData[index], dynamicsChartData) }"
+                                            :title="`Общая ДЗ: ${formatCurrency(dynamicsChartData.totalDebtData[index])}`"
+                                        ></div>
+                                        <div 
+                                            class="bar bar-overdue"
+                                            :style="{ height: getBarHeight(dynamicsChartData.overdueDebtData[index], dynamicsChartData) }"
+                                            :title="`Просроченная ДЗ: ${formatCurrency(dynamicsChartData.overdueDebtData[index])}`"
+                                        ></div>
+                                    </div>
+                                    <span class="bar-label">{{ label }}</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Детальная таблица -->
+                        <div class="dynamics-table-container">
+                            <table class="dynamics-table">
+                                <thead>
+                                    <tr>
+                                        <th>Период</th>
+                                        <th>Общая ДЗ</th>
+                                        <th>Просроченная ДЗ</th>
+                                        <th>Доля просрочки</th>
+                                        <th>Изменение</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="(item, index) in dynamicsData?.dynamics" :key="item.period">
+                                        <td class="period-cell">{{ formatPeriodLabel(item.period) }}</td>
+                                        <td class="amount-cell">{{ formatCurrency(item.totalDebt) }}</td>
+                                        <td class="amount-cell overdue">{{ formatCurrency(item.overdueDebt) }}</td>
+                                        <td class="percent-cell">
+                                            {{ item.totalDebt > 0 ? formatPercent((item.overdueDebt / item.totalDebt) * 100) : '—' }}
+                                        </td>
+                                        <td class="change-cell">
+                                            <span 
+                                                v-if="index > 0" 
+                                                :class="getChangeClass(item.totalDebt, dynamicsData?.dynamics[index - 1].totalDebt)"
+                                            >
+                                                {{ getChangeLabel(item.totalDebt, dynamicsData?.dynamics[index - 1].totalDebt) }}
+                                            </span>
+                                            <span v-else class="change-neutral">—</span>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Пустое состояние -->
+                    <div v-else class="section-empty">
+                        <p>Данные о динамике ДЗ пока недоступны.</p>
+                    </div>
+                </section>
+
+                <!-- Секция: Структура ДЗ -->
+                <section class="charts-grid structure-section">
+                    <!-- Структура по типам услуг -->
+                    <article class="chart-card">
+                        <div class="chart-header">
+                            <h3 class="chart-title">🏷️ Структура по типам услуг</h3>
+                            <p class="chart-subtitle">Распределение ДЗ по видам оказанных услуг</p>
+                        </div>
+
+                        <div v-if="reportStore.receivablesStructureLoading" class="section-loading-small">
+                            <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                            <span>Загрузка...</span>
+                        </div>
+
+                        <div v-else-if="reportStore.receivablesStructureError" class="section-error-small">
+                            <p>{{ reportStore.receivablesStructureError }}</p>
+                        </div>
+
+                        <div v-else-if="structureData?.byServiceType?.length" class="structure-list">
+                            <div 
+                                v-for="(item, index) in structureData.byServiceType" 
+                                :key="item.serviceType"
+                                class="structure-item"
+                            >
+                                <div class="structure-item-header">
+                                    <span 
+                                        class="structure-color-dot"
+                                        :style="{ background: CHART_COLORS.serviceTypes[index % CHART_COLORS.serviceTypes.length] }"
+                                    ></span>
+                                    <span class="structure-item-name">{{ item.serviceType || 'Не указано' }}</span>
+                                    <span class="structure-item-count">{{ item.count }} счетов</span>
+                                </div>
+                                <div class="structure-item-stats">
+                                    <span class="structure-item-amount">{{ formatCurrency(item.amount) }}</span>
+                                    <span class="structure-item-percent">{{ formatPercent(item.percentage) }}</span>
+                                </div>
+                                <div class="structure-progress-bar">
+                                    <div 
+                                        class="structure-progress-fill"
+                                        :style="{ 
+                                            width: item.percentage + '%',
+                                            background: CHART_COLORS.serviceTypes[index % CHART_COLORS.serviceTypes.length]
+                                        }"
+                                    ></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <p v-else class="empty-state">Данные о структуре по услугам недоступны.</p>
+                    </article>
+
+                    <!-- Структура по менеджерам -->
+                    <article class="chart-card">
+                        <div class="chart-header">
+                            <h3 class="chart-title">👥 Структура по менеджерам</h3>
+                            <p class="chart-subtitle">Распределение ДЗ по ответственным менеджерам</p>
+                        </div>
+
+                        <div v-if="reportStore.receivablesStructureLoading" class="section-loading-small">
+                            <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                            <span>Загрузка...</span>
+                        </div>
+
+                        <div v-else-if="reportStore.receivablesStructureError" class="section-error-small">
+                            <p>{{ reportStore.receivablesStructureError }}</p>
+                        </div>
+
+                        <div v-else-if="structureData?.byManager?.length" class="structure-list">
+                            <div 
+                                v-for="(item, index) in structureData.byManager" 
+                                :key="item.manager"
+                                class="structure-item"
+                            >
+                                <div class="structure-item-header">
+                                    <span 
+                                        class="structure-color-dot"
+                                        :style="{ background: CHART_COLORS.managers[index % CHART_COLORS.managers.length] }"
+                                    ></span>
+                                    <span class="structure-item-name">{{ item.manager || 'Не указан' }}</span>
+                                    <span class="structure-item-count">{{ item.count }} счетов</span>
+                                </div>
+                                <div class="structure-item-stats">
+                                    <span class="structure-item-amount">{{ formatCurrency(item.amount) }}</span>
+                                    <span class="structure-item-percent">{{ formatPercent(item.percentage) }}</span>
+                                </div>
+                                <div class="structure-progress-bar">
+                                    <div 
+                                        class="structure-progress-fill"
+                                        :style="{ 
+                                            width: item.percentage + '%',
+                                            background: CHART_COLORS.managers[index % CHART_COLORS.managers.length]
+                                        }"
+                                    ></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <p v-else class="empty-state">Данные о структуре по менеджерам недоступны.</p>
+                    </article>
+                </section>
+
+                <!-- Секция: Анализ концентрации задолженности -->
+                <section class="full-width-card concentration-section">
+                    <div class="chart-header">
+                        <div class="chart-header-left">
+                            <h3 class="chart-title">🎯 Анализ концентрации задолженности</h3>
+                            <p class="chart-subtitle">Распределение ДЗ по крупнейшим должникам и оценка рисков концентрации</p>
+                        </div>
+                        <div class="chart-header-right" v-if="concentrationSummary">
+                            <div class="concentration-indicators">
+                                <div class="concentration-indicator">
+                                    <span class="indicator-label">Топ-5</span>
+                                    <span 
+                                        class="indicator-value"
+                                        :class="getConcentrationRiskClass(concentrationSummary.top5Concentration)"
+                                    >
+                                        {{ concentrationSummary.top5ConcentrationLabel }}
+                                    </span>
+                                </div>
+                                <div class="concentration-indicator">
+                                    <span class="indicator-label">Топ-10</span>
+                                    <span 
+                                        class="indicator-value"
+                                        :class="getConcentrationRiskClass(concentrationSummary.top10Concentration)"
+                                    >
+                                        {{ concentrationSummary.top10ConcentrationLabel }}
+                                    </span>
+                                </div>
+                                <div class="concentration-indicator">
+                                    <span class="indicator-label">Макс. доля</span>
+                                    <span 
+                                        class="indicator-value"
+                                        :class="getConcentrationRiskClass(concentrationSummary.maxConcentration * 2)"
+                                    >
+                                        {{ concentrationSummary.maxConcentrationLabel }}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Состояние загрузки -->
+                    <div v-if="reportStore.debtConcentrationLoading" class="section-loading">
+                        <div class="spinner-border text-primary" role="status"></div>
+                        <p>Загружаем анализ концентрации...</p>
+                    </div>
+
+                    <!-- Ошибка -->
+                    <div v-else-if="reportStore.debtConcentrationError" class="section-error">
+                        <p class="error-text">{{ reportStore.debtConcentrationError }}</p>
+                        <button type="button" class="retry-btn" @click="reportStore.fetchDebtConcentration()">Повторить</button>
+                    </div>
+
+                    <!-- Таблица концентрации -->
+                    <div v-else-if="topConcentrationCustomers.length" class="concentration-content">
+                        <!-- Сводные карточки -->
+                        <div class="concentration-summary-cards" v-if="concentrationSummary">
+                            <div class="summary-card">
+                                <span class="summary-card-icon">👥</span>
+                                <div class="summary-card-content">
+                                    <span class="summary-card-value">{{ concentrationSummary.totalCustomers }}</span>
+                                    <span class="summary-card-label">Всего должников</span>
+                                </div>
+                            </div>
+                            <div class="summary-card">
+                                <span class="summary-card-icon">💰</span>
+                                <div class="summary-card-content">
+                                    <span class="summary-card-value">{{ concentrationSummary.totalDebtLabel }}</span>
+                                    <span class="summary-card-label">Общая ДЗ</span>
+                                </div>
+                            </div>
+                            <div class="summary-card summary-card-danger">
+                                <span class="summary-card-icon">⚠️</span>
+                                <div class="summary-card-content">
+                                    <span class="summary-card-value">{{ concentrationSummary.totalOverdueDebtLabel }}</span>
+                                    <span class="summary-card-label">Просроченная ДЗ</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Таблица должников -->
+                        <div class="concentration-table-container">
+                            <table class="concentration-table">
+                                <thead>
+                                    <tr>
+                                        <th class="th-rank">#</th>
+                                        <th class="th-customer">Контрагент</th>
+                                        <th class="th-amount">Общий долг</th>
+                                        <th class="th-amount">Просрочено</th>
+                                        <th class="th-percent">Доля от общей ДЗ</th>
+                                        <th class="th-percent">Доля от просрочки</th>
+                                        <th class="th-days">Старость долга</th>
+                                        <th class="th-count">Счетов</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr 
+                                        v-for="customer in topConcentrationCustomers" 
+                                        :key="customer.customerId"
+                                        class="concentration-row"
+                                        :class="{ 'high-risk-row': customer.percentageOfTotal > 15 }"
+                                    >
+                                        <td class="cell-rank">
+                                            <span class="rank-badge" :class="'rank-' + customer.rank">{{ customer.rank }}</span>
+                                        </td>
+                                        <td class="cell-customer">
+                                            <div class="customer-info">
+                                                <span class="customer-name">{{ customer.customerName }}</span>
+                                                <span class="customer-unp">УНП: {{ customer.customerUnp }}</span>
+                                            </div>
+                                        </td>
+                                        <td class="cell-amount">{{ customer.totalDebtLabel }}</td>
+                                        <td class="cell-amount cell-overdue">{{ customer.overdueDebtLabel }}</td>
+                                        <td class="cell-percent">
+                                            <div class="percent-bar-container">
+                                                <div 
+                                                    class="percent-bar"
+                                                    :style="{ width: Math.min(customer.percentageOfTotal, 100) + '%' }"
+                                                    :class="{ 'high-percent': customer.percentageOfTotal > 15 }"
+                                                ></div>
+                                                <span class="percent-value">{{ customer.percentOfTotalLabel }}</span>
+                                            </div>
+                                        </td>
+                                        <td class="cell-percent">
+                                            <div class="percent-bar-container">
+                                                <div 
+                                                    class="percent-bar percent-bar-overdue"
+                                                    :style="{ width: Math.min(customer.percentageOfOverdue, 100) + '%' }"
+                                                ></div>
+                                                <span class="percent-value">{{ customer.percentOfOverdueLabel }}</span>
+                                            </div>
+                                        </td>
+                                        <td class="cell-days">
+                                            <span 
+                                                class="days-badge"
+                                                :class="getDaysAgeBadgeClass(customer.oldestDebtDays)"
+                                            >
+                                                {{ customer.oldestDebtDays }} дн.
+                                            </span>
+                                        </td>
+                                        <td class="cell-count">{{ customer.invoiceCount }}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Предупреждение о высокой концентрации -->
+                        <div 
+                            v-if="concentrationSummary && concentrationSummary.top5Concentration > 50"
+                            class="concentration-warning"
+                        >
+                            <span class="warning-icon">⚠️</span>
+                            <div class="warning-content">
+                                <strong>Высокая концентрация риска!</strong>
+                                <p>
+                                    Топ-5 должников составляют {{ concentrationSummary.top5ConcentrationLabel }} от общей задолженности. 
+                                    Рекомендуется диверсифицировать клиентскую базу для снижения рисков.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Пустое состояние -->
+                    <div v-else class="section-empty">
+                        <p>Данные об концентрации задолженности пока недоступны.</p>
+                    </div>
                 </section>
 
                 <!-- Секция со списком счетов -->
@@ -453,9 +843,12 @@
                                         <th>Дебитор</th>
                                         <th>Дата выставления</th>
                                         <th>Срок оплаты</th>
+                                        <th>Долг по сроку</th>
                                         <th>Общая сумма</th>
                                         <th>Оплачено</th>
                                         <th>Остаток</th>
+                                        <th>Дата оплаты</th>
+                                        <th>Категория</th>
                                         <th>Статус</th>
                                         <th>Менеджер</th>
                                     </tr>
@@ -473,9 +866,22 @@
                                         <td :class="{ 'overdue-date': isOverdue(invoice.dueDate) }">
                                             {{ formatDate(invoice.dueDate) }}
                                         </td>
+                                        <td :class="getDaysUntilDueClass(invoice)">
+                                            {{ formatDaysUntilDue(invoice) }}
+                                        </td>
                                         <td class="amount-cell">{{ formatCurrency(invoice.totalAmount) }}</td>
                                         <td class="amount-cell paid">{{ formatCurrency(invoice.paidAmount) }}</td>
                                         <td class="amount-cell outstanding">{{ formatCurrency(invoice.outstandingAmount) }}</td>
+                                        <td>{{ formatDate(invoice.lastPaymentDate) }}</td>
+                                        <td>
+                                            <span 
+                                                class="category-badge" 
+                                                :class="getOverdueCategoryClass(invoice.overdueCategory)"
+                                                :title="invoice.recommendation || getOverdueCategoryRecommendation(invoice.overdueCategory)"
+                                            >
+                                                {{ getOverdueCategoryLabel(invoice.overdueCategory) }}
+                                            </span>
+                                        </td>
                                         <td>
                                             <span class="status-badge" :class="getStatusClass(invoice.status)">
                                                 {{ getStatusLabel(invoice.status) }}
@@ -552,6 +958,7 @@
 import { onMounted, onBeforeUnmount, computed, ref } from 'vue';
 import { useAuthStore } from '~/stores/auth';
 import { useReportStore } from '~/stores/report';
+import { TREND_LABELS, TREND_ICONS, CHART_COLORS, type DynamicsTrend } from '~/types/reports-phase3';
 
 definePageMeta({
     middleware: ['auth']
@@ -1005,6 +1412,159 @@ const canUploadData = computed(() => {
     return authStore.user.roles.includes('ADMIN') || authStore.user.roles.includes('ANALYST');
 });
 
+// === Computed свойства Фазы 3 ===
+
+// Данные динамики ДЗ
+const dynamicsData = computed(() => reportStore.receivablesDynamics);
+
+// Подготовленные данные для графика динамики
+const dynamicsChartData = computed(() => {
+    if (!dynamicsData.value?.dynamics?.length) return null;
+    
+    const dynamics = dynamicsData.value.dynamics;
+    return {
+        labels: dynamics.map(d => formatPeriodLabel(d.period)),
+        totalDebtData: dynamics.map(d => d.totalDebt),
+        overdueDebtData: dynamics.map(d => d.overdueDebt),
+    };
+});
+
+// Сводка тренда динамики
+const dynamicsTrendSummary = computed(() => {
+    if (!dynamicsData.value?.summary) return null;
+    const { trend, startPeriod, endPeriod } = dynamicsData.value.summary;
+    return {
+        trend,
+        trendLabel: TREND_LABELS[trend],
+        trendIcon: TREND_ICONS[trend],
+        startPeriod: formatPeriodLabel(startPeriod),
+        endPeriod: formatPeriodLabel(endPeriod),
+    };
+});
+
+// Данные структуры ДЗ
+const structureData = computed(() => reportStore.receivablesStructure);
+
+// Данные концентрации задолженности
+const concentrationData = computed(() => reportStore.debtConcentration);
+
+// Топ должников с расчётом долей
+const topConcentrationCustomers = computed(() => {
+    if (!concentrationData.value?.customers?.length) return [];
+    return concentrationData.value.customers.slice(0, 10).map((customer, index) => ({
+        ...customer,
+        rank: index + 1,
+        totalDebtLabel: formatCurrency(customer.totalDebt),
+        overdueDebtLabel: formatCurrency(customer.overdueDebt),
+        percentOfTotalLabel: formatPercent(customer.percentageOfTotal),
+        percentOfOverdueLabel: formatPercent(customer.percentageOfOverdue),
+    }));
+});
+
+// Сводка концентрации
+const concentrationSummary = computed(() => {
+    if (!concentrationData.value?.summary) return null;
+    const s = concentrationData.value.summary;
+    return {
+        ...s,
+        totalDebtLabel: formatCurrency(s.totalDebt),
+        totalOverdueDebtLabel: formatCurrency(s.totalOverdueDebt),
+        maxConcentrationLabel: formatPercent(s.maxConcentration),
+        top5ConcentrationLabel: formatPercent(s.top5Concentration),
+        top10ConcentrationLabel: formatPercent(s.top10Concentration),
+    };
+});
+
+// Форматирование периода (2025-01 -> Янв 2025)
+function formatPeriodLabel(period: string): string {
+    if (!period) return '—';
+    const [year, month] = period.split('-');
+    const monthNames = ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
+    const monthIndex = parseInt(month, 10) - 1;
+    return `${monthNames[monthIndex] || month} ${year}`;
+}
+
+// Получить CSS класс для тренда
+function getTrendClass(trend: DynamicsTrend): string {
+    switch (trend) {
+        case 'increasing': return 'trend-up';
+        case 'decreasing': return 'trend-down';
+        case 'stable': return 'trend-stable';
+        default: return '';
+    }
+}
+
+// Получить цвет бара на основе индекса
+function getBarColor(index: number): string {
+    return CHART_COLORS.agingBuckets[index % CHART_COLORS.agingBuckets.length];
+}
+
+// Обновление данных Фазы 3
+function handleRefreshPhase3() {
+    reportStore.fetchAllPhase3Data();
+}
+
+// Получить высоту бара для графика
+function getBarHeight(value: number, chartData: { totalDebtData: number[], overdueDebtData: number[] }): string {
+    const maxValue = Math.max(...chartData.totalDebtData, ...chartData.overdueDebtData);
+    if (maxValue <= 0) return '0%';
+    const percentage = (value / maxValue) * 100;
+    return `${Math.max(percentage, 2)}%`;
+}
+
+// Получить засечки оси Y
+function getYAxisTicks(chartData: { totalDebtData: number[], overdueDebtData: number[] }): number[] {
+    const maxValue = Math.max(...chartData.totalDebtData, ...chartData.overdueDebtData);
+    if (maxValue <= 0) return [0];
+    
+    // Создаем 5 засечек
+    const step = maxValue / 4;
+    return [0, step, step * 2, step * 3, maxValue].reverse();
+}
+
+// Форматирование компактной валюты (для оси Y)
+function formatCompactCurrency(value: number): string {
+    if (value >= 1000000) {
+        return `${(value / 1000000).toFixed(1)} млн`;
+    } else if (value >= 1000) {
+        return `${(value / 1000).toFixed(0)} тыс`;
+    }
+    return value.toFixed(0);
+}
+
+// Получить класс для изменения
+function getChangeClass(current: number, previous: number): string {
+    if (previous === 0) return 'change-neutral';
+    const change = ((current - previous) / previous) * 100;
+    if (change > 5) return 'change-up';
+    if (change < -5) return 'change-down';
+    return 'change-neutral';
+}
+
+// Получить метку изменения
+function getChangeLabel(current: number, previous: number): string {
+    if (previous === 0) return '—';
+    const change = ((current - previous) / previous) * 100;
+    const sign = change > 0 ? '+' : '';
+    return `${sign}${change.toFixed(1)}%`;
+}
+
+// Получить класс риска концентрации
+function getConcentrationRiskClass(percentage: number): string {
+    if (percentage > 70) return 'risk-critical';
+    if (percentage > 50) return 'risk-high';
+    if (percentage > 30) return 'risk-medium';
+    return 'risk-low';
+}
+
+// Получить класс бейджа возраста долга
+function getDaysAgeBadgeClass(days: number): string {
+    if (days > 90) return 'days-critical';
+    if (days > 60) return 'days-high';
+    if (days > 30) return 'days-medium';
+    return 'days-low';
+}
+
 // Функции для работы со счетами
 function formatDate(dateString: string) {
     if (!dateString) return '—';
@@ -1059,6 +1619,91 @@ function getDebtWorkStatusLabel(status: string) {
     };
     return statusMap[status] || status;
 }
+
+// === Новые функции для Фазы 2 ===
+
+// Форматирование "Долг по сроку"
+function formatDaysUntilDue(invoice: any): string {
+    // Используем поле daysUntilDue если есть, иначе вычисляем
+    if (invoice.daysUntilDue !== undefined) {
+        const days = invoice.daysUntilDue;
+        if (days > 0) return `${days} дн. до срока`;
+        if (days === 0) return 'Сегодня';
+        return `${Math.abs(days)} дн. просрочки`;
+    }
+    
+    // Fallback: вычисляем на клиенте
+    if (!invoice.dueDate) return '—';
+    const dueDate = new Date(invoice.dueDate);
+    if (isNaN(dueDate.getTime())) return '—';
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    dueDate.setHours(0, 0, 0, 0);
+    const diffTime = dueDate.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    if (diffDays > 0) return `${diffDays} дн. до срока`;
+    if (diffDays === 0) return 'Сегодня';
+    return `${Math.abs(diffDays)} дн. просрочки`;
+}
+
+// CSS класс для "Долг по сроку"
+function getDaysUntilDueClass(invoice: any): string {
+    const days = invoice.daysUntilDue ?? calculateDaysUntilDue(invoice.dueDate);
+    if (days === undefined || days === null) return '';
+    if (days > 7) return 'days-ok';
+    if (days > 0) return 'days-warning';
+    if (days === 0) return 'days-today';
+    return 'days-overdue';
+}
+
+function calculateDaysUntilDue(dueDate: string | undefined): number | undefined {
+    if (!dueDate) return undefined;
+    const due = new Date(dueDate);
+    if (isNaN(due.getTime())) return undefined;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    due.setHours(0, 0, 0, 0);
+    return Math.ceil((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+// Метки категорий просрочки
+function getOverdueCategoryLabel(category: string | undefined): string {
+    const labels: Record<string, string> = {
+        'NOT_DUE': 'Срок не наступил',
+        'NOTIFY': 'Оповестить',
+        'CLAIM': 'Претензия',
+        'COURT': 'Суд',
+        'BAD_DEBT': 'Безнадёжный',
+    };
+    return category ? labels[category] || '—' : '—';
+}
+
+// CSS класс для категории просрочки
+function getOverdueCategoryClass(category: string | undefined): string {
+    const classes: Record<string, string> = {
+        'NOT_DUE': 'category-not-due',
+        'NOTIFY': 'category-notify',
+        'CLAIM': 'category-claim',
+        'COURT': 'category-court',
+        'BAD_DEBT': 'category-bad-debt',
+    };
+    return category ? classes[category] || '' : '';
+}
+
+// Рекомендация по категории просрочки
+function getOverdueCategoryRecommendation(category: string | undefined): string {
+    const recommendations: Record<string, string> = {
+        'NOT_DUE': 'Срок оплаты ещё не наступил',
+        'NOTIFY': 'Оповестить дебитора (звонок, e-mail)',
+        'CLAIM': 'Направить претензию дебитору',
+        'COURT': 'Направить заявление в суд (только после претензии!)',
+        'BAD_DEBT': 'Признание безнадёжным долгом и списание (более 3 лет)',
+    };
+    return category ? recommendations[category] || '' : '';
+}
+
+// === Конец новых функций Фазы 2 ===
 
 const invoiceFilterTimeout = ref<ReturnType<typeof setTimeout> | null>(null);
 
@@ -1133,6 +1778,11 @@ onMounted(() => {
     // Загружаем счета при монтировании компонента
     if (authStore.isAuthenticated) {
         reportStore.fetchInvoices();
+    }
+
+    // Загружаем данные Фазы 3
+    if (authStore.isAuthenticated) {
+        reportStore.fetchAllPhase3Data();
     }
 });
 
@@ -2511,6 +3161,81 @@ onBeforeUnmount(() => {
     color: #4a5568;
 }
 
+/* === Новые стили для Фазы 2 === */
+
+/* Стили для "Долг по сроку" */
+.days-ok {
+    color: #2f855a;
+    font-weight: 500;
+}
+
+.days-warning {
+    color: #c05621;
+    font-weight: 600;
+}
+
+.days-today {
+    color: #c05621;
+    font-weight: 700;
+    background: #fef5e7;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+}
+
+.days-overdue {
+    color: #c53030;
+    font-weight: 700;
+}
+
+/* Стили для категорий просрочки */
+.category-badge {
+    display: inline-block;
+    padding: 0.3rem 0.6rem;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: help;
+    white-space: nowrap;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+
+    &:hover {
+        transform: scale(1.05);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    }
+}
+
+.category-not-due {
+    background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+    color: #1b5e20;
+    border: 1px solid #a5d6a7;
+}
+
+.category-notify {
+    background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%);
+    color: #e65100;
+    border: 1px solid #ffcc80;
+}
+
+.category-claim {
+    background: linear-gradient(135deg, #fff8e1 0%, #ffecb3 100%);
+    color: #f57f17;
+    border: 1px solid #ffd54f;
+}
+
+.category-court {
+    background: linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%);
+    color: #b71c1c;
+    border: 1px solid #ef9a9a;
+}
+
+.category-bad-debt {
+    background: linear-gradient(135deg, #4a148c 0%, #7b1fa2 100%);
+    color: #ffffff;
+    border: 1px solid #9c27b0;
+}
+
+/* === Конец новых стилей Фазы 2 === */
+
 .invoices-pagination {
     display: flex;
     justify-content: center;
@@ -2570,6 +3295,823 @@ onBeforeUnmount(() => {
     }
 
     .invoices-table {
+        min-width: 800px;
+    }
+}
+
+/* ============================================= */
+/* === СТИЛИ ФАЗЫ 3: Аналитические инструменты === */
+/* ============================================= */
+
+/* Общие стили для секций Фазы 3 */
+.section-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 3rem;
+    color: #718096;
+
+    p {
+        margin-top: 1rem;
+        font-size: 0.9rem;
+    }
+}
+
+.section-loading-small {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    padding: 2rem;
+    color: #718096;
+    font-size: 0.9rem;
+}
+
+.section-error {
+    padding: 2rem;
+    text-align: center;
+    background: #fed7d7;
+    border-radius: 0.75rem;
+    border: 1px solid #feb2b2;
+
+    .error-text {
+        color: #c53030;
+        margin: 0 0 1rem 0;
+        font-size: 0.9rem;
+    }
+}
+
+.section-error-small {
+    padding: 1.5rem;
+    text-align: center;
+    background: #fed7d7;
+    border-radius: 0.5rem;
+    color: #c53030;
+    font-size: 0.85rem;
+}
+
+.section-empty {
+    text-align: center;
+    padding: 3rem;
+    color: #718096;
+    font-size: 0.95rem;
+    font-style: italic;
+}
+
+.chart-header-left {
+    flex: 1;
+}
+
+.chart-header-right {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+/* === Секция: Динамика ДЗ === */
+.dynamics-section {
+    .chart-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+}
+
+.trend-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.5rem 1rem;
+    border-radius: 999px;
+    font-weight: 600;
+    font-size: 0.85rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+
+    &.trend-up {
+        background: linear-gradient(135deg, #fed7d7 0%, #fc8181 100%);
+        color: #742a2a;
+    }
+
+    &.trend-down {
+        background: linear-gradient(135deg, #c6f6d5 0%, #68d391 100%);
+        color: #22543d;
+    }
+
+    &.trend-stable {
+        background: linear-gradient(135deg, #e2e8f0 0%, #a0aec0 100%);
+        color: #2d3748;
+    }
+}
+
+.period-badge {
+    background: #f7fafc;
+    color: #4a5568;
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    font-size: 0.85rem;
+    font-weight: 500;
+    border: 1px solid #e2e8f0;
+}
+
+.dynamics-chart-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.dynamics-legend {
+    display: flex;
+    justify-content: center;
+    gap: 2rem;
+    padding: 0.75rem;
+    background: #f7fafc;
+    border-radius: 0.5rem;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: #4a5568;
+}
+
+.legend-color {
+    width: 16px;
+    height: 16px;
+    border-radius: 4px;
+    flex-shrink: 0;
+}
+
+.dynamics-chart {
+    display: flex;
+    gap: 1rem;
+    min-height: 300px;
+    padding: 1rem;
+    background: #f7fafc;
+    border-radius: 0.75rem;
+    border: 1px solid #e2e8f0;
+}
+
+.chart-y-axis {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    width: 80px;
+    padding-right: 0.5rem;
+    border-right: 1px solid #cbd5e0;
+}
+
+.y-tick {
+    font-size: 0.75rem;
+    color: #718096;
+    text-align: right;
+}
+
+.chart-bars {
+    flex: 1;
+    display: flex;
+    align-items: flex-end;
+    gap: 0.5rem;
+    padding-bottom: 2rem;
+    overflow-x: auto;
+}
+
+.chart-bar-group {
+    flex: 1;
+    min-width: 60px;
+    max-width: 100px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.bar-container {
+    width: 100%;
+    height: 250px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 4px;
+}
+
+.bar {
+    width: 35%;
+    min-height: 4px;
+    border-radius: 4px 4px 0 0;
+    transition: height 0.5s ease, transform 0.2s ease;
+    cursor: pointer;
+
+    &:hover {
+        transform: scaleY(1.02);
+        opacity: 0.9;
+    }
+}
+
+.bar-total {
+    background: linear-gradient(180deg, #4299e1 0%, #3182ce 100%);
+}
+
+.bar-overdue {
+    background: linear-gradient(180deg, #f56565 0%, #e53e3e 100%);
+}
+
+.bar-label {
+    font-size: 0.7rem;
+    color: #4a5568;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.dynamics-table-container {
+    overflow-x: auto;
+    border-radius: 0.75rem;
+    border: 1px solid #e2e8f0;
+}
+
+.dynamics-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #fff;
+
+    thead {
+        background: #f7fafc;
+    }
+
+    th {
+        padding: 1rem 0.75rem;
+        text-align: left;
+        font-size: 0.8rem;
+        font-weight: 700;
+        color: #4a5568;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        border-bottom: 2px solid #e2e8f0;
+    }
+
+    td {
+        padding: 0.875rem 0.75rem;
+        font-size: 0.9rem;
+        color: #2d3748;
+        border-bottom: 1px solid #e2e8f0;
+    }
+
+    tbody tr:hover {
+        background: #f7fafc;
+    }
+}
+
+.period-cell {
+    font-weight: 600;
+    color: #4a5568;
+}
+
+.amount-cell {
+    font-weight: 600;
+    text-align: right;
+
+    &.overdue {
+        color: #c53030;
+    }
+}
+
+.percent-cell {
+    text-align: center;
+    color: #718096;
+}
+
+.change-cell {
+    text-align: center;
+}
+
+.change-up {
+    color: #c53030;
+    font-weight: 600;
+
+    &::before {
+        content: '↗ ';
+    }
+}
+
+.change-down {
+    color: #2f855a;
+    font-weight: 600;
+
+    &::before {
+        content: '↘ ';
+    }
+}
+
+.change-neutral {
+    color: #718096;
+}
+
+/* === Секция: Структура ДЗ === */
+.structure-section {
+    margin-top: 1.5rem;
+}
+
+.structure-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.structure-item {
+    background: #f8fafc;
+    border-radius: 0.75rem;
+    padding: 1rem;
+    border: 1px solid #e2e8f0;
+    transition: all 0.2s ease;
+
+    &:hover {
+        background: #f1f5f9;
+        border-color: #cbd5e0;
+        transform: translateY(-1px);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    }
+}
+
+.structure-item-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.5rem;
+}
+
+.structure-color-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.structure-item-name {
+    flex: 1;
+    font-weight: 600;
+    color: #2d3748;
+    font-size: 0.9rem;
+}
+
+.structure-item-count {
+    font-size: 0.75rem;
+    color: #718096;
+    background: #edf2f7;
+    padding: 0.2rem 0.5rem;
+    border-radius: 999px;
+}
+
+.structure-item-stats {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+}
+
+.structure-item-amount {
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #2d3748;
+}
+
+.structure-item-percent {
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #667eea;
+    background: #ebf4ff;
+    padding: 0.25rem 0.6rem;
+    border-radius: 999px;
+}
+
+.structure-progress-bar {
+    width: 100%;
+    height: 8px;
+    background: #e2e8f0;
+    border-radius: 999px;
+    overflow: hidden;
+}
+
+.structure-progress-fill {
+    height: 100%;
+    border-radius: 999px;
+    transition: width 0.5s ease;
+}
+
+/* === Секция: Анализ концентрации === */
+.concentration-section {
+    margin-top: 1.5rem;
+
+    .chart-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        flex-wrap: wrap;
+        gap: 1rem;
+    }
+}
+
+.concentration-indicators {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.concentration-indicator {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    background: #f7fafc;
+    padding: 0.75rem 1rem;
+    border-radius: 0.5rem;
+    border: 1px solid #e2e8f0;
+    min-width: 80px;
+}
+
+.indicator-label {
+    font-size: 0.7rem;
+    color: #718096;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+}
+
+.indicator-value {
+    font-size: 1.1rem;
+    font-weight: 700;
+    padding: 0.25rem 0.5rem;
+    border-radius: 0.25rem;
+
+    &.risk-low {
+        color: #2f855a;
+        background: #c6f6d5;
+    }
+
+    &.risk-medium {
+        color: #c05621;
+        background: #feebc8;
+    }
+
+    &.risk-high {
+        color: #c53030;
+        background: #fed7d7;
+    }
+
+    &.risk-critical {
+        color: #fff;
+        background: linear-gradient(135deg, #c53030 0%, #9b2c2c 100%);
+    }
+}
+
+.concentration-content {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.concentration-summary-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+}
+
+.summary-card {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    background: #f7fafc;
+    padding: 1.25rem;
+    border-radius: 0.75rem;
+    border: 1px solid #e2e8f0;
+    transition: all 0.2s ease;
+
+    &:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    }
+
+    &.summary-card-danger {
+        background: linear-gradient(135deg, #fff5f5 0%, #fed7d7 100%);
+        border-color: #feb2b2;
+    }
+}
+
+.summary-card-icon {
+    font-size: 2rem;
+}
+
+.summary-card-content {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.summary-card-value {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #2d3748;
+}
+
+.summary-card-label {
+    font-size: 0.8rem;
+    color: #718096;
+}
+
+.concentration-table-container {
+    overflow-x: auto;
+    border-radius: 0.75rem;
+    border: 1px solid #e2e8f0;
+}
+
+.concentration-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: #fff;
+
+    thead {
+        background: #f7fafc;
+    }
+
+    th {
+        padding: 1rem 0.75rem;
+        text-align: left;
+        font-size: 0.75rem;
+        font-weight: 700;
+        color: #4a5568;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        border-bottom: 2px solid #e2e8f0;
+        white-space: nowrap;
+    }
+
+    .th-rank {
+        width: 50px;
+        text-align: center;
+    }
+
+    .th-customer {
+        min-width: 200px;
+    }
+
+    .th-amount {
+        text-align: right;
+        min-width: 120px;
+    }
+
+    .th-percent {
+        min-width: 140px;
+    }
+
+    .th-days, .th-count {
+        width: 80px;
+        text-align: center;
+    }
+
+    td {
+        padding: 1rem 0.75rem;
+        font-size: 0.9rem;
+        color: #2d3748;
+        border-bottom: 1px solid #e2e8f0;
+    }
+
+    tbody tr {
+        transition: background 0.2s ease;
+
+        &:hover {
+            background: #f7fafc;
+        }
+
+        &.high-risk-row {
+            background: linear-gradient(90deg, rgba(254, 215, 215, 0.3) 0%, transparent 100%);
+
+            &:hover {
+                background: linear-gradient(90deg, rgba(254, 215, 215, 0.5) 0%, #f7fafc 100%);
+            }
+        }
+    }
+}
+
+.cell-rank {
+    text-align: center;
+}
+
+.rank-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    font-weight: 700;
+    font-size: 0.85rem;
+    background: #e2e8f0;
+    color: #4a5568;
+
+    &.rank-1 {
+        background: linear-gradient(135deg, #ffd700 0%, #ffb900 100%);
+        color: #744210;
+        box-shadow: 0 2px 8px rgba(255, 215, 0, 0.4);
+    }
+
+    &.rank-2 {
+        background: linear-gradient(135deg, #c0c0c0 0%, #a0a0a0 100%);
+        color: #2d3748;
+    }
+
+    &.rank-3 {
+        background: linear-gradient(135deg, #cd7f32 0%, #b8722d 100%);
+        color: #fff;
+    }
+}
+
+.cell-customer {
+    .customer-info {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+
+    .customer-name {
+        font-weight: 600;
+        color: #2d3748;
+    }
+
+    .customer-unp {
+        font-size: 0.8rem;
+        color: #718096;
+    }
+}
+
+.cell-amount {
+    text-align: right;
+    font-weight: 600;
+
+    &.cell-overdue {
+        color: #c53030;
+    }
+}
+
+.cell-percent {
+    padding: 0.5rem 0.75rem;
+}
+
+.percent-bar-container {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.percent-bar {
+    height: 8px;
+    background: linear-gradient(90deg, #4299e1 0%, #3182ce 100%);
+    border-radius: 999px;
+    transition: width 0.5s ease;
+    min-width: 4px;
+
+    &.high-percent {
+        background: linear-gradient(90deg, #f56565 0%, #c53030 100%);
+    }
+
+    &.percent-bar-overdue {
+        background: linear-gradient(90deg, #ed8936 0%, #dd6b20 100%);
+    }
+}
+
+.percent-value {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #4a5568;
+    white-space: nowrap;
+}
+
+.cell-days {
+    text-align: center;
+}
+
+.days-badge {
+    display: inline-block;
+    padding: 0.3rem 0.6rem;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    font-weight: 600;
+
+    &.days-low {
+        background: #c6f6d5;
+        color: #22543d;
+    }
+
+    &.days-medium {
+        background: #feebc8;
+        color: #c05621;
+    }
+
+    &.days-high {
+        background: #fed7d7;
+        color: #c53030;
+    }
+
+    &.days-critical {
+        background: linear-gradient(135deg, #c53030 0%, #9b2c2c 100%);
+        color: #fff;
+    }
+}
+
+.cell-count {
+    text-align: center;
+    font-weight: 600;
+    color: #4a5568;
+}
+
+.concentration-warning {
+    display: flex;
+    align-items: flex-start;
+    gap: 1rem;
+    background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+    border: 1px solid #f59e0b;
+    border-radius: 0.75rem;
+    padding: 1.25rem;
+}
+
+.warning-icon {
+    font-size: 1.5rem;
+    flex-shrink: 0;
+}
+
+.warning-content {
+    strong {
+        display: block;
+        color: #92400e;
+        margin-bottom: 0.5rem;
+    }
+
+    p {
+        margin: 0;
+        color: #78350f;
+        font-size: 0.9rem;
+        line-height: 1.5;
+    }
+}
+
+/* Адаптивность для Фазы 3 */
+@media (max-width: 992px) {
+    .dynamics-section .chart-header,
+    .concentration-section .chart-header {
+        flex-direction: column;
+    }
+
+    .chart-header-right {
+        width: 100%;
+        justify-content: flex-start;
+    }
+
+    .concentration-indicators {
+        width: 100%;
+    }
+
+    .concentration-indicator {
+        flex: 1;
+    }
+}
+
+@media (max-width: 768px) {
+    .dynamics-chart {
+        flex-direction: column;
+        min-height: auto;
+    }
+
+    .chart-y-axis {
+        flex-direction: row;
+        width: 100%;
+        padding-right: 0;
+        padding-bottom: 0.5rem;
+        border-right: none;
+        border-bottom: 1px solid #cbd5e0;
+    }
+
+    .chart-bars {
+        padding-bottom: 1rem;
+    }
+
+    .bar-container {
+        height: 150px;
+    }
+
+    .dynamics-legend {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .concentration-summary-cards {
+        grid-template-columns: 1fr;
+    }
+
+    .concentration-table {
         min-width: 800px;
     }
 }

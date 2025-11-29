@@ -1,6 +1,21 @@
 // stores/report.ts
 import { defineStore } from "pinia";
 import { useAuthStore } from "./auth"; // Для получения токена
+import type { 
+  OverdueCategory, 
+  DueStatus, 
+  Payment,
+  RecommendationsSummary 
+} from "~/types/invoice";
+import type {
+  ReceivablesDynamicsResponse,
+  ReceivablesDynamicsParams,
+  ReceivablesStructureResponse,
+  ReceivablesStructureParams,
+  DebtConcentrationResponse,
+  DebtConcentrationParams,
+  SummaryReportResponse,
+} from "~/types/reports-phase3";
 
 // --- Типы данных для отчета ---
 // Повторяем структуру DTO с бэкенда
@@ -83,6 +98,15 @@ export interface Invoice {
   contactResult?: string;
   createdAt: string;
   updatedAt: string;
+  
+  // Новые поля (Фаза 2)
+  daysOverdue?: number;              // Количество дней просрочки
+  daysUntilDue?: number;             // Дней до срока оплаты
+  dueStatus?: DueStatus;             // Статус срока
+  overdueCategory?: OverdueCategory; // Категория просрочки
+  recommendation?: string;           // Рекомендация по действию
+  payments?: Payment[];              // Список оплат
+  lastPaymentDate?: string;          // Дата последней оплаты
 }
 
 interface PaginatedInvoicesResponse {
@@ -123,6 +147,14 @@ interface DashboardSummary {
   overduePaymentsPercentage: number;
   topDebtors?: TopDebtor[];
   lastUpdatedAt?: string;
+  // Новое поле (Фаза 2)
+  recommendationsSummary?: {
+    NOT_DUE: { count: number; totalAmount: number };
+    NOTIFY: { count: number; totalAmount: number };
+    CLAIM: { count: number; totalAmount: number };
+    COURT: { count: number; totalAmount: number };
+    BAD_DEBT: { count: number; totalAmount: number };
+  };
 }
 
 // --- Тип состояния Store ---
@@ -143,6 +175,23 @@ interface ReportState {
   invoicesLoading: boolean;
   invoicesError: string | null;
   invoicesFilters: FetchInvoicesParams;
+  // Новые поля (Фаза 2)
+  recommendations: RecommendationsSummary | null;
+  recommendationsLoading: boolean;
+  recommendationsError: string | null;
+  // Новые поля (Фаза 3)
+  receivablesDynamics: ReceivablesDynamicsResponse | null;
+  receivablesDynamicsLoading: boolean;
+  receivablesDynamicsError: string | null;
+  receivablesStructure: ReceivablesStructureResponse | null;
+  receivablesStructureLoading: boolean;
+  receivablesStructureError: string | null;
+  debtConcentration: DebtConcentrationResponse | null;
+  debtConcentrationLoading: boolean;
+  debtConcentrationError: string | null;
+  summaryReport: SummaryReportResponse | null;
+  summaryReportLoading: boolean;
+  summaryReportError: string | null;
 }
 
 export const useReportStore = defineStore("report", {
@@ -163,6 +212,23 @@ export const useReportStore = defineStore("report", {
     invoicesLoading: false,
     invoicesError: null,
     invoicesFilters: {},
+    // Новые поля (Фаза 2)
+    recommendations: null,
+    recommendationsLoading: false,
+    recommendationsError: null,
+    // Новые поля (Фаза 3)
+    receivablesDynamics: null,
+    receivablesDynamicsLoading: false,
+    receivablesDynamicsError: null,
+    receivablesStructure: null,
+    receivablesStructureLoading: false,
+    receivablesStructureError: null,
+    debtConcentration: null,
+    debtConcentrationLoading: false,
+    debtConcentrationError: null,
+    summaryReport: null,
+    summaryReportLoading: false,
+    summaryReportError: null,
   }),
 
   getters: {
@@ -432,6 +498,307 @@ export const useReportStore = defineStore("report", {
     clearInvoicesFilters() {
       this.invoicesFilters = {};
       this.invoicesCurrentPage = 1;
+    },
+
+    // --- Загрузка рекомендаций (Фаза 2) ---
+    async fetchRecommendations() {
+      console.log("[ReportStore] Fetching recommendations...");
+      this.recommendationsLoading = true;
+      this.recommendationsError = null;
+
+      const authStore = useAuthStore();
+      const config = useRuntimeConfig();
+
+      if (!authStore.isAuthenticated || !authStore.token) {
+        this.recommendationsLoading = false;
+        this.recommendationsError = "Пользователь не аутентифицирован.";
+        console.error("[ReportStore] Cannot load recommendations: user not authenticated.");
+        this.recommendations = null;
+        return;
+      }
+
+      try {
+        const response = await $fetch<RecommendationsSummary>(
+          `/reports/recommendations`,
+          {
+            baseURL: config.public.apiBase,
+            method: "GET",
+            headers: {
+              Authorization: `Bearer ${authStore.token}`,
+            },
+          }
+        );
+
+        console.log("[ReportStore] Recommendations received:", response);
+        this.recommendations = response;
+      } catch (err: any) {
+        console.error("[ReportStore] Error fetching recommendations:", err);
+        if (err.response?.status === 403) {
+          this.recommendationsError =
+            "Доступ запрещен: у вас нет прав для просмотра рекомендаций.";
+        } else {
+          this.recommendationsError =
+            err.data?.message ||
+            err.message ||
+            "Не удалось загрузить рекомендации.";
+        }
+        this.recommendations = null;
+      } finally {
+        this.recommendationsLoading = false;
+      }
+    },
+
+    // --- Загрузка детальной информации о счете (Фаза 2) ---
+    async fetchInvoiceDetails(invoiceId: string): Promise<Invoice | null> {
+      console.log(`[ReportStore] Fetching invoice details for ${invoiceId}...`);
+
+      const authStore = useAuthStore();
+      const config = useRuntimeConfig();
+
+      if (!authStore.isAuthenticated || !authStore.token) {
+        console.error("[ReportStore] Cannot load invoice details: user not authenticated.");
+        return null;
+      }
+
+      try {
+        const response = await $fetch<Invoice>(
+          `/reports/invoices/${invoiceId}`,
+          {
+            baseURL: config.public.apiBase,
+            method: "GET",
+            headers: {
+              Authorization: `Bearer ${authStore.token}`,
+            },
+          }
+        );
+
+        console.log("[ReportStore] Invoice details received:", response);
+        return response;
+      } catch (err: any) {
+        console.error(`[ReportStore] Error fetching invoice details for ${invoiceId}:`, err);
+        return null;
+      }
+    },
+
+    // ===============================================
+    // === Новые методы Фазы 3 ===
+    // ===============================================
+
+    // --- Загрузка динамики ДЗ ---
+    async fetchReceivablesDynamics(params: ReceivablesDynamicsParams = {}) {
+      console.log("[ReportStore] Fetching receivables dynamics...", params);
+      this.receivablesDynamicsLoading = true;
+      this.receivablesDynamicsError = null;
+
+      const authStore = useAuthStore();
+      const config = useRuntimeConfig();
+
+      if (!authStore.isAuthenticated || !authStore.token) {
+        this.receivablesDynamicsLoading = false;
+        this.receivablesDynamicsError = "Пользователь не аутентифицирован.";
+        console.error("[ReportStore] Cannot load receivables dynamics: user not authenticated.");
+        this.receivablesDynamics = null;
+        return;
+      }
+
+      try {
+        const queryParams: Record<string, string> = {};
+        if (params.startDate) queryParams.startDate = params.startDate;
+        if (params.endDate) queryParams.endDate = params.endDate;
+
+        const response = await $fetch<ReceivablesDynamicsResponse>(
+          `/reports/receivables-dynamics`,
+          {
+            baseURL: config.public.apiBase,
+            method: "GET",
+            headers: {
+              Authorization: `Bearer ${authStore.token}`,
+            },
+            params: queryParams,
+          }
+        );
+
+        console.log("[ReportStore] Receivables dynamics received:", response);
+        this.receivablesDynamics = response;
+      } catch (err: any) {
+        console.error("[ReportStore] Error fetching receivables dynamics:", err);
+        if (err.response?.status === 403) {
+          this.receivablesDynamicsError =
+            "Доступ запрещен: у вас нет прав для просмотра динамики ДЗ.";
+        } else {
+          this.receivablesDynamicsError =
+            err.data?.message ||
+            err.message ||
+            "Не удалось загрузить динамику ДЗ.";
+        }
+        this.receivablesDynamics = null;
+      } finally {
+        this.receivablesDynamicsLoading = false;
+      }
+    },
+
+    // --- Загрузка структуры ДЗ ---
+    async fetchReceivablesStructure(params: ReceivablesStructureParams = {}) {
+      console.log("[ReportStore] Fetching receivables structure...", params);
+      this.receivablesStructureLoading = true;
+      this.receivablesStructureError = null;
+
+      const authStore = useAuthStore();
+      const config = useRuntimeConfig();
+
+      if (!authStore.isAuthenticated || !authStore.token) {
+        this.receivablesStructureLoading = false;
+        this.receivablesStructureError = "Пользователь не аутентифицирован.";
+        console.error("[ReportStore] Cannot load receivables structure: user not authenticated.");
+        this.receivablesStructure = null;
+        return;
+      }
+
+      try {
+        const queryParams: Record<string, string> = {};
+        if (params.asOfDate) queryParams.asOfDate = params.asOfDate;
+
+        const response = await $fetch<ReceivablesStructureResponse>(
+          `/reports/receivables-structure`,
+          {
+            baseURL: config.public.apiBase,
+            method: "GET",
+            headers: {
+              Authorization: `Bearer ${authStore.token}`,
+            },
+            params: queryParams,
+          }
+        );
+
+        console.log("[ReportStore] Receivables structure received:", response);
+        this.receivablesStructure = response;
+      } catch (err: any) {
+        console.error("[ReportStore] Error fetching receivables structure:", err);
+        if (err.response?.status === 403) {
+          this.receivablesStructureError =
+            "Доступ запрещен: у вас нет прав для просмотра структуры ДЗ.";
+        } else {
+          this.receivablesStructureError =
+            err.data?.message ||
+            err.message ||
+            "Не удалось загрузить структуру ДЗ.";
+        }
+        this.receivablesStructure = null;
+      } finally {
+        this.receivablesStructureLoading = false;
+      }
+    },
+
+    // --- Загрузка анализа концентрации задолженности ---
+    async fetchDebtConcentration(params: DebtConcentrationParams = {}) {
+      console.log("[ReportStore] Fetching debt concentration...", params);
+      this.debtConcentrationLoading = true;
+      this.debtConcentrationError = null;
+
+      const authStore = useAuthStore();
+      const config = useRuntimeConfig();
+
+      if (!authStore.isAuthenticated || !authStore.token) {
+        this.debtConcentrationLoading = false;
+        this.debtConcentrationError = "Пользователь не аутентифицирован.";
+        console.error("[ReportStore] Cannot load debt concentration: user not authenticated.");
+        this.debtConcentration = null;
+        return;
+      }
+
+      try {
+        const queryParams: Record<string, string | number> = {};
+        if (params.asOfDate) queryParams.asOfDate = params.asOfDate;
+        if (params.minPercentage !== undefined) queryParams.minPercentage = params.minPercentage;
+        if (params.limit !== undefined) queryParams.limit = params.limit;
+
+        const response = await $fetch<DebtConcentrationResponse>(
+          `/reports/debt-concentration`,
+          {
+            baseURL: config.public.apiBase,
+            method: "GET",
+            headers: {
+              Authorization: `Bearer ${authStore.token}`,
+            },
+            params: queryParams,
+          }
+        );
+
+        console.log("[ReportStore] Debt concentration received:", response);
+        this.debtConcentration = response;
+      } catch (err: any) {
+        console.error("[ReportStore] Error fetching debt concentration:", err);
+        if (err.response?.status === 403) {
+          this.debtConcentrationError =
+            "Доступ запрещен: у вас нет прав для просмотра анализа концентрации.";
+        } else {
+          this.debtConcentrationError =
+            err.data?.message ||
+            err.message ||
+            "Не удалось загрузить анализ концентрации задолженности.";
+        }
+        this.debtConcentration = null;
+      } finally {
+        this.debtConcentrationLoading = false;
+      }
+    },
+
+    // --- Загрузка сводного отчёта ---
+    async fetchSummaryReport() {
+      console.log("[ReportStore] Fetching summary report...");
+      this.summaryReportLoading = true;
+      this.summaryReportError = null;
+
+      const authStore = useAuthStore();
+      const config = useRuntimeConfig();
+
+      if (!authStore.isAuthenticated || !authStore.token) {
+        this.summaryReportLoading = false;
+        this.summaryReportError = "Пользователь не аутентифицирован.";
+        console.error("[ReportStore] Cannot load summary report: user not authenticated.");
+        this.summaryReport = null;
+        return;
+      }
+
+      try {
+        const response = await $fetch<SummaryReportResponse>(
+          `/reports/summary`,
+          {
+            baseURL: config.public.apiBase,
+            method: "GET",
+            headers: {
+              Authorization: `Bearer ${authStore.token}`,
+            },
+          }
+        );
+
+        console.log("[ReportStore] Summary report received:", response);
+        this.summaryReport = response;
+      } catch (err: any) {
+        console.error("[ReportStore] Error fetching summary report:", err);
+        if (err.response?.status === 403) {
+          this.summaryReportError =
+            "Доступ запрещен: у вас нет прав для просмотра сводного отчёта.";
+        } else {
+          this.summaryReportError =
+            err.data?.message ||
+            err.message ||
+            "Не удалось загрузить сводный отчёт.";
+        }
+        this.summaryReport = null;
+      } finally {
+        this.summaryReportLoading = false;
+      }
+    },
+
+    // --- Загрузка всех данных Фазы 3 параллельно ---
+    async fetchAllPhase3Data() {
+      console.log("[ReportStore] Fetching all Phase 3 data...");
+      await Promise.all([
+        this.fetchReceivablesDynamics(),
+        this.fetchReceivablesStructure(),
+        this.fetchDebtConcentration(),
+      ]);
     },
   },
 });

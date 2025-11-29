@@ -4,8 +4,13 @@ import { useAuthStore } from "./auth";
 import type { 
   DebtWorkRecord, 
   CustomerDebtWorkStats, 
-  CreateDebtWorkRecordData 
+  CreateDebtWorkRecordData,
+  UpdateDebtWorkRecordData 
 } from "~/types/customer-debt-work";
+import type { 
+  CustomerFullResponse,
+  PaymentGrade 
+} from "~/types/customer-full";
 
 // --- Типы ---
 // Тип для ответа API (один дебитор)
@@ -21,6 +26,13 @@ export interface CustomerResponse {
   riskLevel?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'; // Уровень риска
   // Статистика работы с задолженностями (может приходить из API при расширенном запросе)
   debtWorkStats?: CustomerDebtWorkStats;
+  // Новые поля (Фаза 2)
+  totalDebt?: number;      // Общий долг
+  overdueDebt?: number;    // Просроченный долг
+  paymentRating?: {        // Оценка платежной дисциплины
+    grade: PaymentGrade;
+    description: string;
+  };
 }
 
 // Тип для пагинированного ответа API
@@ -57,6 +69,10 @@ interface CustomerState {
   isLoading: boolean;
   error: string | null;
   filters: FetchCustomersParams;
+  // Новые поля (Фаза 2)
+  customerFull: CustomerFullResponse | null;
+  customerFullLoading: boolean;
+  customerFullError: string | null;
 }
 
 export const useCustomerStore = defineStore("customer", {
@@ -68,6 +84,10 @@ export const useCustomerStore = defineStore("customer", {
     isLoading: false,
     error: null,
     filters: {},
+    // Новые поля (Фаза 2)
+    customerFull: null,
+    customerFullLoading: false,
+    customerFullError: null,
   }),
 
   getters: {
@@ -345,6 +365,154 @@ export const useCustomerStore = defineStore("customer", {
           "Не удалось создать запись о работе с задолженностью.";
         return null;
       }
+    },
+
+    /**
+     * Обновление записи о работе с задолженностью
+     */
+    async updateDebtWorkRecord(
+      customerId: string,
+      recordId: string,
+      data: UpdateDebtWorkRecordData
+    ): Promise<DebtWorkRecord | null> {
+      console.log(`[CustomerStore] Updating debt work record ${recordId} for customer ${customerId}`, data);
+      this.error = null;
+      const authStore = useAuthStore();
+      const config = useRuntimeConfig();
+
+      if (!authStore.token) {
+        this.error = "Не авторизован.";
+        return null;
+      }
+
+      try {
+        const response = await $fetch<DebtWorkRecord>(
+          `/customers/${customerId}/debt-work/${recordId}`,
+          {
+            baseURL: config.public.apiBase,
+            method: "PUT",
+            headers: {
+              Authorization: `Bearer ${authStore.token}`,
+              "Content-Type": "application/json",
+            },
+            body: data,
+          }
+        );
+        console.log(`[CustomerStore] Debt work record updated:`, response);
+        return response;
+      } catch (err: any) {
+        console.error(`[CustomerStore] Error updating debt work record:`, err);
+        // Обработка специфичных ошибок
+        const statusCode = err.statusCode || err.status;
+        if (statusCode === 400) {
+          this.error = "Ошибка валидации данных. Проверьте введенные значения.";
+        } else if (statusCode === 403) {
+          this.error = "У вас нет прав для выполнения этого действия.";
+        } else if (statusCode === 404) {
+          this.error = "Запись не найдена. Возможно, она была удалена.";
+        } else {
+          this.error =
+            err.data?.message ||
+            err.message ||
+            "Произошла ошибка сервера. Попробуйте позже.";
+        }
+        return null;
+      }
+    },
+
+    /**
+     * Удаление записи о работе с задолженностью
+     */
+    async deleteDebtWorkRecord(
+      customerId: string,
+      recordId: string
+    ): Promise<boolean> {
+      console.log(`[CustomerStore] Deleting debt work record ${recordId} for customer ${customerId}`);
+      this.error = null;
+      const authStore = useAuthStore();
+      const config = useRuntimeConfig();
+
+      if (!authStore.token) {
+        this.error = "Не авторизован.";
+        return false;
+      }
+
+      try {
+        await $fetch(
+          `/customers/${customerId}/debt-work/${recordId}`,
+          {
+            baseURL: config.public.apiBase,
+            method: "DELETE",
+            headers: {
+              Authorization: `Bearer ${authStore.token}`,
+            },
+          }
+        );
+        console.log(`[CustomerStore] Debt work record ${recordId} deleted successfully`);
+        return true;
+      } catch (err: any) {
+        console.error(`[CustomerStore] Error deleting debt work record:`, err);
+        // Обработка специфичных ошибок
+        const statusCode = err.statusCode || err.status;
+        if (statusCode === 403) {
+          this.error = "У вас нет прав для выполнения этого действия.";
+        } else if (statusCode === 404) {
+          this.error = "Запись не найдена. Возможно, она была удалена.";
+        } else {
+          this.error =
+            err.data?.message ||
+            err.message ||
+            "Произошла ошибка сервера. Попробуйте позже.";
+        }
+        return false;
+      }
+    },
+
+    // --- Загрузка полных данных дебитора (Фаза 2) ---
+    async fetchCustomerFull(customerId: string): Promise<CustomerFullResponse | null> {
+      console.log(`[CustomerStore] Fetching full customer data for ${customerId}...`);
+      this.customerFullLoading = true;
+      this.customerFullError = null;
+      this.customerFull = null;
+
+      const authStore = useAuthStore();
+      const config = useRuntimeConfig();
+
+      if (!authStore.token) {
+        this.customerFullLoading = false;
+        this.customerFullError = "Не авторизован.";
+        return null;
+      }
+
+      try {
+        const response = await $fetch<CustomerFullResponse>(
+          `/customers/${customerId}/full`,
+          {
+            baseURL: config.public.apiBase,
+            method: "GET",
+            headers: { Authorization: `Bearer ${authStore.token}` },
+          }
+        );
+        console.log("[CustomerStore] Full customer data received:", response);
+        this.customerFull = response;
+        return response;
+      } catch (err: any) {
+        console.error(`[CustomerStore] Error fetching full customer data for ${customerId}:`, err);
+        this.customerFullError =
+          err.data?.message ||
+          err.message ||
+          "Не удалось загрузить полные данные дебитора.";
+        this.customerFull = null;
+        return null;
+      } finally {
+        this.customerFullLoading = false;
+      }
+    },
+
+    // Очистка полных данных дебитора
+    clearCustomerFull() {
+      this.customerFull = null;
+      this.customerFullError = null;
     },
   },
 });

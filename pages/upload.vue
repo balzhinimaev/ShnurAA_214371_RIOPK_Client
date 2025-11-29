@@ -55,7 +55,7 @@
                         <strong>Обработано строк:</strong> {{ uploadFeedback.details.processedRows }}
                     </li>
                     <li v-if="uploadFeedback.details.createdCustomers !== undefined">
-                        <strong>Создано клиентов:</strong> {{ uploadFeedback.details.createdCustomers }}
+                        <strong>Создано дебиторов:</strong> {{ uploadFeedback.details.createdCustomers }}
                     </li>
                     <li v-if="uploadFeedback.details.createdInvoices !== undefined">
                         <strong>Создано счетов:</strong> {{ uploadFeedback.details.createdInvoices }}

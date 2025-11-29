@@ -59,8 +59,28 @@
           <div class="record-type-badge" :class="`badge-${record.actionType.toLowerCase()}`">
             {{ getActionTypeLabel(record.actionType) }}
           </div>
-          <div class="record-date">
-            {{ formatDate(record.actionDate) }}
+          <div class="record-header-right">
+            <div class="record-date">
+              {{ formatDate(record.actionDate) }}
+            </div>
+            <div v-if="canEditRecord" class="record-actions">
+              <button 
+                type="button" 
+                class="btn-record-action btn-edit"
+                title="Редактировать"
+                @click="$emit('edit-record', record)"
+              >
+                ✏️
+              </button>
+              <button 
+                type="button" 
+                class="btn-record-action btn-delete"
+                title="Удалить"
+                @click="$emit('delete-record', record)"
+              >
+                🗑️
+              </button>
+            </div>
           </div>
         </div>
         
@@ -113,9 +133,10 @@ const props = defineProps<{
   records?: DebtWorkRecord[];
   stats?: CustomerDebtWorkStats;
   canAddRecord?: boolean;
+  canEditRecord?: boolean;
 }>();
 
-const emit = defineEmits(['add-record']);
+const emit = defineEmits(['add-record', 'edit-record', 'delete-record']);
 
 function formatDate(date: string | Date): string {
   if (!date) return '—';
@@ -377,6 +398,12 @@ function getRiskLevelLabel(level?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'): stri
   margin-bottom: 0.75rem;
 }
 
+.record-header-right {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
 .record-type-badge {
   padding: 0.25rem 0.75rem;
   border-radius: 999px;
@@ -389,6 +416,50 @@ function getRiskLevelLabel(level?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'): stri
 .record-date {
   font-size: 0.85rem;
   color: #718096;
+}
+
+.record-actions {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.btn-record-action {
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 0.375rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.875rem;
+  transition: all 0.2s ease;
+  opacity: 0.7;
+
+  &:hover {
+    opacity: 1;
+    transform: scale(1.1);
+  }
+}
+
+.btn-edit {
+  background: #e0e7ff;
+  color: #4338ca;
+
+  &:hover {
+    background: #c7d2fe;
+    box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+  }
+}
+
+.btn-delete {
+  background: #fee2e2;
+  color: #dc2626;
+
+  &:hover {
+    background: #fecaca;
+    box-shadow: 0 2px 8px rgba(220, 38, 38, 0.3);
+  }
 }
 
 .record-body {
