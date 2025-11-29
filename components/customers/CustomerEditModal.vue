@@ -4,7 +4,7 @@
     <div class="modal-dialog modal-dialog-centered modal-xl">
       <div class="modal-content">
         <div class="modal-header">
-          <h5 class="modal-title">Карточка клиента: {{ originalCustomer?.name }}</h5>
+          <h5 class="modal-title">Карточка дебитора: {{ originalCustomer?.name }}</h5>
           <button type="button" class="btn-close" @click="close" aria-label="Close"></button>
         </div>
         
@@ -166,7 +166,7 @@ function close() {
 
 function submitForm() {
   if (!isFormValid.value) {
-      localError.value = "Название клиента должно быть не менее 2 символов.";
+      localError.value = "Название дебитора должно быть не менее 2 символов.";
       return;
   }
   localError.value = null;

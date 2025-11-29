@@ -204,7 +204,7 @@ export const useReportStore = defineStore("report", {
   },
 
   actions: {
-    // Асинхронное действие для загрузки клиентов по aging bucket
+    // Асинхронное действие для загрузки дебиторов по aging bucket
     async fetchAgingCustomers(agingBucket: string, displayBucket?: string) {
       const apiBucket = agingBucket; // agingBucket теперь уже преобразованный для API
       const storeKey = displayBucket || apiBucket; // Ключ для хранения в store
@@ -241,12 +241,12 @@ export const useReportStore = defineStore("report", {
         console.error(`[ReportStore] Error fetching aging customers for ${apiBucket}:`, err);
         if (err.response?.status === 403) {
           this.agingCustomersError[storeKey] =
-            "Доступ запрещен: у вас нет прав для просмотра списка клиентов.";
+            "Доступ запрещен: у вас нет прав для просмотра списка дебиторов.";
         } else {
           this.agingCustomersError[storeKey] =
             err.data?.message ||
             err.message ||
-            "Не удалось загрузить список клиентов.";
+            "Не удалось загрузить список дебиторов.";
         }
         this.agingCustomers[storeKey] = [];
       } finally {

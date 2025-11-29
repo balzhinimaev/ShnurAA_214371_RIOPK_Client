@@ -8,7 +8,7 @@ import type {
 } from "~/types/customer-debt-work";
 
 // --- Типы ---
-// Тип для ответа API (один клиент)
+// Тип для ответа API (один дебитор)
 export interface CustomerResponse {
   id: string;
   name: string;
@@ -16,7 +16,7 @@ export interface CustomerResponse {
   contactInfo?: string | null; // Допускаем null
   createdAt: string | Date;
   updatedAt: string | Date;
-  // Рисковость клиента (рассчитывается на бэкенде при получении списка)
+  // Рисковость дебитора (рассчитывается на бэкенде при получении списка)
   riskScore?: number; // Оценка рисковости (0-100)
   riskLevel?: 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'; // Уровень риска
   // Статистика работы с задолженностями (может приходить из API при расширенном запросе)
@@ -79,7 +79,7 @@ export const useCustomerStore = defineStore("customer", {
   },
 
   actions: {
-    // --- Загрузка списка клиентов ---
+    // --- Загрузка списка дебиторов ---
     async fetchCustomers(params: FetchCustomersParams = {}) {
       console.log("[CustomerStore] Fetching customers with params:", params);
       this.isLoading = true;
@@ -128,7 +128,7 @@ export const useCustomerStore = defineStore("customer", {
         this.error =
           err.data?.message ||
           err.message ||
-          "Не удалось загрузить список клиентов.";
+          "Не удалось загрузить список дебиторов.";
         this.customers = [];
         this.totalCustomers = 0;
       } finally {
@@ -146,7 +146,7 @@ export const useCustomerStore = defineStore("customer", {
       this.currentPage = 1;
     },
 
-    // --- Обновление клиента ---
+    // --- Обновление дебитора ---
     async updateCustomer(
       customerId: string,
       data: UpdateCustomerData
@@ -189,12 +189,12 @@ export const useCustomerStore = defineStore("customer", {
           err
         );
         this.error =
-          err.data?.message || err.message || "Не удалось обновить клиента.";
+          err.data?.message || err.message || "Не удалось обновить дебитора.";
         return false; // Неудача
       }
     },
 
-    // --- Удаление клиента ---
+    // --- Удаление дебитора ---
     async deleteCustomer(customerId: string): Promise<boolean> {
       console.log(`[CustomerStore] Deleting customer ${customerId}`);
       this.error = null;
@@ -226,7 +226,7 @@ export const useCustomerStore = defineStore("customer", {
           err
         );
         this.error =
-          err.data?.message || err.message || "Не удалось удалить клиента.";
+          err.data?.message || err.message || "Не удалось удалить дебитора.";
         // TODO: Обработать ошибку 400 (нельзя удалить из-за счетов) отдельно?
         return false; // Неудача
       }
@@ -251,7 +251,7 @@ export const useCustomerStore = defineStore("customer", {
     // --- Работа с задолженностями ---
     
     /**
-     * Получение истории работы с задолженностями клиента
+     * Получение истории работы с задолженностями дебитора
      */
     async fetchDebtWorkHistory(
       customerId: string,

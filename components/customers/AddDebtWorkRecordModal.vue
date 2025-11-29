@@ -63,7 +63,7 @@
                 required
               >
                 <option value="">Выберите результат</option>
-                <option value="CONTACTED">Связались с клиентом</option>
+                <option value="CONTACTED">Связались с дебитором</option>
                 <option value="NO_CONTACT">Не удалось связаться</option>
                 <option value="PROMISED_PAY">Обещали оплатить</option>
                 <option value="REFUSED">Отказались платить</option>
@@ -89,7 +89,7 @@
               <div v-if="invoiceIdError" class="invalid-feedback">
                 {{ invoiceIdError }}
               </div>
-              <div v-else class="form-text">Оставьте пустым, если действие относится ко всем задолженностям клиента. ID должен быть валидным 24-символьным hex-идентификатором</div>
+              <div v-else class="form-text">Оставьте пустым, если действие относится ко всем задолженностям дебитора. ID должен быть валидным 24-символьным hex-идентификатором</div>
             </div>
 
             <!-- Сумма задолженности -->

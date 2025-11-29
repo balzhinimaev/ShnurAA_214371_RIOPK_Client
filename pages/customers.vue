@@ -5,9 +5,9 @@
       <div class="customers-container">
         <header class="customers-header">
           <div class="header-left">
-            <h1 class="page-title">👥 Управление клиентами</h1>
+            <h1 class="page-title">👥 Управление дебиторами</h1>
             <p class="page-subtitle">
-              Полный список клиентов с возможностью фильтрации, сортировки и редактирования
+              Полный список дебиторов с возможностью фильтрации, сортировки и редактирования
             </p>
           </div>
           <div class="header-right">
@@ -37,7 +37,7 @@
         <div v-else-if="store.error && !store.customers.length" class="state-card error-card">
           <div class="error-content">
             <div>
-              <h2 class="error-title">Не удалось загрузить клиентов</h2>
+              <h2 class="error-title">Не удалось загрузить дебиторов</h2>
               <p class="error-message">{{ store.error }}</p>
             </div>
             <button type="button" class="retry-btn" @click="handleRefresh">Повторить попытку</button>
@@ -50,7 +50,7 @@
           <section class="full-width-card customers-filters-section">
             <div class="chart-header">
               <h3 class="chart-title">🔍 Фильтры и поиск</h3>
-              <p class="chart-subtitle">Найдите нужного клиента по различным параметрам</p>
+              <p class="chart-subtitle">Найдите нужного дебитора по различным параметрам</p>
             </div>
 
             <div class="customers-filters">
@@ -61,7 +61,7 @@
                     v-model="customerFilters.name" 
                     @input="handleFilterChange"
                     type="text" 
-                    placeholder="Введите название клиента"
+                    placeholder="Введите название дебитора"
                     class="filter-input"
                   />
                 </div>
@@ -130,11 +130,11 @@
           <!-- Список клиентов -->
           <section class="full-width-card customers-list-section">
             <div class="chart-header">
-              <h3 class="chart-title">📋 Список клиентов</h3>
+              <h3 class="chart-title">📋 Список дебиторов</h3>
               <p class="chart-subtitle">Всего найдено: <strong>{{ store.totalCustomers }}</strong></p>
             </div>
 
-            <!-- Таблица клиентов -->
+            <!-- Таблица дебиторов -->
             <div v-if="store.customers.length" class="customers-table-container">
               <table class="customers-table">
                 <thead>
@@ -209,7 +209,7 @@
 
             <!-- Пустое состояние -->
             <div v-else class="customers-empty">
-              <p>Клиенты не найдены. Попробуйте изменить фильтры или загрузить данные по счетам.</p>
+              <p>Дебиторы не найдены. Попробуйте изменить фильтры или загрузить данные по счетам.</p>
             </div>
 
             <!-- Пагинация -->
@@ -255,7 +255,7 @@
               <div class="spinner-grow text-light" role="status">
                 <span class="visually-hidden">Загрузка...</span>
               </div>
-              <p class="loading-text">Загружаем список клиентов...</p>
+              <p class="loading-text">Загружаем список дебиторов...</p>
             </div>
           </div>
         </div>
@@ -317,9 +317,9 @@ function formatCustomerId(id: string) {
   return id.substring(0, 8) + '...';
 }
 
-// Функции для определения рисковости клиента
+// Функции для определения рисковости дебитора
 function getCustomerRiskLevel(customer: Customer): 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL' | null {
-  // Получаем из данных клиента, которые приходят из API
+  // Получаем из данных дебитора, которые приходят из API
   // riskLevel рассчитывается на бэкенде автоматически
   return customer.riskLevel || null;
 }
@@ -441,10 +441,10 @@ async function saveCustomer(updatedData: UpdateCustomerData) {
 // Функция удаления
 function confirmDeleteCustomer(customer: Customer) {
   if (!canDelete.value) {
-    alert('У вас нет прав на удаление клиентов.');
+    alert('У вас нет прав на удаление дебиторов.');
     return;
   }
-  if (confirm(`Вы уверены, что хотите удалить клиента "${customer.name}" (УНП: ${customer.unp || 'N/A'})?\n\nПримечание: Это может быть невозможно, если у клиента есть связанные счета.`)) {
+  if (confirm(`Вы уверены, что хотите удалить дебитора "${customer.name}" (УНП: ${customer.unp || 'N/A'})?\n\nПримечание: Это может быть невозможно, если у дебитора есть связанные счета.`)) {
     store.deleteCustomer(customer.id).then(() => {
       store.fetchCustomers();
     });

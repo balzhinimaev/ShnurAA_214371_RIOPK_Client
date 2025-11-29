@@ -34,10 +34,10 @@
                                 </ul>
                             </li>
 
-                             <!-- === ИЗМЕНЕНИЕ: Добавляем пункт Клиенты === -->
+                             <!-- === ИЗМЕНЕНИЕ: Добавляем пункт Дебиторы === -->
                              <li class="nav-item" v-if="canManageCustomers">
                                 <NuxtLink class="nav-link" active-class="active" to="/customers">
-                                    Клиенты
+                                    Дебиторы
                                 </NuxtLink>
                             </li>
                              <!-- === КОНЕЦ ИЗМЕНЕНИЯ === -->

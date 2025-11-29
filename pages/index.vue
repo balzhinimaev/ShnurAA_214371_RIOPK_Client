@@ -7,7 +7,10 @@
                 <div class="header-left">
                     <h1 class="page-title">📊 Дашборд анализа дебиторской задолженности</h1>
                     <p class="page-subtitle">
-                        Комплексный обзор ключевых показателей по клиентской задолженности
+                        Комплексный обзор ключевых показателей по дебиторской задолженности
+                    </p>
+                    <p class="page-note" style="font-size: 0.85rem; color: #718096; margin-top: 0.5rem; font-style: italic;">
+                        Примечание: В программе рассматривается только часть дебиторской задолженности, связанная с расчетами с поставщиками
                     </p>
                     <div v-if="authStore.isAuthenticated && authStore.user" class="user-meta">
                         <div class="user-meta-text">
@@ -152,7 +155,7 @@
                                     <!-- Состояние загрузки -->
                                     <div v-if="reportStore.agingCustomersLoading[aging.bucket]" class="aging-customers-loading">
                                         <div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div>
-                                        Загружаем клиентов...
+                                        Загружаем дебиторов...
                                     </div>
 
                                     <!-- Ошибка загрузки -->
@@ -161,7 +164,7 @@
                                         <button type="button" class="retry-btn" @click="reportStore.fetchAgingCustomers(aging.bucket)">Повторить</button>
                                     </div>
 
-                                    <!-- Список клиентов -->
+                                    <!-- Список дебиторов -->
                                     <div v-else-if="reportStore.agingCustomers[aging.bucket]?.length" class="aging-customers-list">
                                         <div v-for="customer in reportStore.agingCustomers[aging.bucket]" :key="customer.customerId" class="aging-customer-card">
                                             <div class="customer-header">
@@ -186,7 +189,7 @@
                                             </div>
                                             <div class="customer-breakdown">
                                                 <div class="breakdown-item" v-if="customer.agingBreakdown.current > 0">
-                                                    <span class="breakdown-label">Текущие</span>
+                                                    <span class="breakdown-label">Срок оплаты не наступил</span>
                                                     <span class="breakdown-value">{{ formatCurrency(customer.agingBreakdown.current) }}</span>
                                                 </div>
                                                 <div class="breakdown-item" v-if="customer.agingBreakdown.days_1_30 > 0">
@@ -211,7 +214,7 @@
 
                                     <!-- Пустое состояние -->
                                     <div v-else class="aging-customers-empty">
-                                        Нет клиентов в этой категории
+                                        Нет дебиторов в этой категории
                                     </div>
                                 </div>
                             </div>
@@ -447,7 +450,7 @@
                                 <thead>
                                     <tr>
                                         <th>Номер счета</th>
-                                        <th>Клиент</th>
+                                        <th>Дебитор</th>
                                         <th>Дата выставления</th>
                                         <th>Срок оплаты</th>
                                         <th>Общая сумма</th>
@@ -630,12 +633,21 @@ const overdueInvoiceCountLabel = computed(() => {
     return `${count} счетов`;
 });
 
+// Функция для форматирования названия bucket
+function formatAgingBucket(bucket: string): string {
+    if (bucket === 'Current' || bucket === 'current') {
+        return 'Срок оплаты не наступил';
+    }
+    return bucket;
+}
+
 const agingColorClasses = ['green', 'yellow', 'orange', 'red', 'purple'];
 const agingData = computed(() => agingStructure.value.map((bucket, index) => {
     const percent = totalAgingAmount.value > 0 ? (bucket.amount / totalAgingAmount.value) * 100 : 0;
     const width = percent > 0 ? Math.max(percent, 6) : 0;
     return {
         ...bucket,
+        bucket: formatAgingBucket(bucket.bucket), // Форматируем название bucket
         percent,
         percentLabel: formatPercent(percent),
         formattedAmount: formatCurrency(bucket.amount),
@@ -753,7 +765,7 @@ const alerts = computed(() => {
         alertsList.push({
             type: 'danger',
             icon: '📊',
-            message: `Низкая оборачиваемость ДЗ: ${s.turnoverRatio.toFixed(2)}. Клиенты медленно платят`
+            message: `Низкая оборачиваемость ДЗ: ${s.turnoverRatio.toFixed(2)}. Дебиторы медленно платят`
         });
     }
     
@@ -952,7 +964,8 @@ function mapAgingBucketToApiParam(bucket: string): string {
         '31-60 дней': '31_60',
         '61-90 дней': '61_90',
         '91+ дней': '91_PLUS',
-        'Current': 'current', // Current соответствует непросроченным счетам
+        'Срок оплаты не наступил': 'current', // Срок оплаты не наступил соответствует непросроченным счетам
+        'Current': 'current', // Для обратной совместимости
         '1-30': '1_30', // Формат без "дней"
         '31-60': '31_60', // Формат без "дней"
         '61-90': '61_90', // Формат без "дней"
@@ -977,7 +990,7 @@ async function handleAgingItemClick(agingBucket: string) {
         // Если элемент свернут, раскрываем и загружаем данные
         expandedAgingItems.value[agingBucket] = true;
 
-        // Загружаем клиентов для этого aging bucket, если они еще не загружены
+        // Загружаем дебиторов для этого aging bucket, если они еще не загружены
         if (!reportStore.agingCustomers[agingBucket] && !reportStore.agingCustomersLoading[agingBucket]) {
             const apiParam = mapAgingBucketToApiParam(agingBucket);
             await reportStore.fetchAgingCustomers(apiParam, agingBucket);
@@ -1020,6 +1033,10 @@ function getStatusLabel(status: string) {
         'OVERDUE': 'Просрочено',
         'CURRENT': 'В срок',
         'PARTIAL': 'Частично оплачено',
+        'trial': 'Досудебный',
+        'collection': 'Взыскание',
+        'open': 'Открыт',
+        'pre-trial': 'Предсудебный',
     };
     return statusMap[status] || status;
 }
@@ -1780,7 +1797,7 @@ onBeforeUnmount(() => {
     font-weight: 500;
 }
 
-/* Стили для раскрываемого контента клиентов */
+/* Стили для раскрываемого контента дебиторов */
 .aging-customers-container {
     margin-top: 1.5rem;
     padding-top: 1.5rem;
