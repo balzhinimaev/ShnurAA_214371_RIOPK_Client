@@ -3,46 +3,7 @@
     <ClientOnly>
         <div class="dashboard-page">
             <div class="dashboard-container">
-            <header class="dashboard-header">
-                <div class="header-left">
-                    <h1 class="page-title">📊 Дашборд анализа дебиторской задолженности</h1>
-                    <p class="page-subtitle">
-                        Комплексный обзор ключевых показателей по дебиторской задолженности
-                    </p>
-                    <p class="page-note" style="font-size: 0.85rem; color: #718096; margin-top: 0.5rem; font-style: italic;">
-                        Примечание: В программе рассматривается только часть дебиторской задолженности, связанная с расчетами с поставщиками
-                    </p>
-                    <div v-if="authStore.isAuthenticated && authStore.user" class="user-meta">
-                        <div class="user-meta-text">
-                            <span class="user-name">👋 {{ authStore.user.name || 'Пользователь' }}</span>
-                            <span class="user-email">{{ authStore.user.email }}</span>
-                        </div>
-                        <div class="role-badges" v-if="authStore.user.roles?.length">
-                            <span v-for="role in authStore.user.roles" :key="role" class="role-badge">{{ role }}</span>
-                        </div>
-                    </div>
-                </div>
-                <div class="header-right">
-                    <span class="date-badge">📅 Данные на: {{ lastUpdatedLabel }}</span>
-                    <button
-                        class="update-btn"
-                        type="button"
-                        :disabled="reportStore.isLoading"
-                        @click="handleRefresh"
-                    >
-                        <span v-if="reportStore.isLoading" class="spinner-border spinner-border-sm me-2" role="status"></span>
-                        <span>{{ reportStore.isLoading ? 'Обновление...' : '🔄 Обновить' }}</span>
-                    </button>
-                    <button
-                        v-if="authStore.isAuthenticated"
-                        type="button"
-                        class="logout-btn"
-                        @click="handleLogout"
-                    >
-                        Выйти
-                    </button>
-                </div>
-            </header>
+            <DashboardHeader @refresh="handleRefresh" @logout="handleLogout" />
 
             <div v-if="reportStore.isLoading" class="state-card loading-card">
                 <div class="loading-indicator">
@@ -161,7 +122,13 @@
                                     <!-- Ошибка загрузки -->
                                     <div v-else-if="reportStore.agingCustomersError[aging.bucket]" class="aging-customers-error">
                                         <p class="error-text">{{ reportStore.agingCustomersError[aging.bucket] }}</p>
-                                        <button type="button" class="retry-btn" @click="reportStore.fetchAgingCustomers(aging.bucket)">Повторить</button>
+                                        <button
+                                            type="button"
+                                            class="retry-btn"
+                                            @click="reportStore.fetchAgingCustomers(mapAgingBucketToApiParam(aging.bucket), aging.bucket)"
+                                        >
+                                            Повторить
+                                        </button>
                                     </div>
 
                                     <!-- Список дебиторов -->
@@ -193,19 +160,19 @@
                                                     <span class="breakdown-value">{{ formatCurrency(customer.agingBreakdown.current) }}</span>
                                                 </div>
                                                 <div class="breakdown-item" v-if="customer.agingBreakdown.days_1_30 > 0">
-                                                    <span class="breakdown-label">1-30 дней</span>
+                                                    <span class="breakdown-label">1-30 дней просрочки</span>
                                                     <span class="breakdown-value">{{ formatCurrency(customer.agingBreakdown.days_1_30) }}</span>
                                                 </div>
                                                 <div class="breakdown-item" v-if="customer.agingBreakdown.days_31_60 > 0">
-                                                    <span class="breakdown-label">31-60 дней</span>
+                                                    <span class="breakdown-label">31-60 дней просрочки</span>
                                                     <span class="breakdown-value">{{ formatCurrency(customer.agingBreakdown.days_31_60) }}</span>
                                                 </div>
                                                 <div class="breakdown-item" v-if="customer.agingBreakdown.days_61_90 > 0">
-                                                    <span class="breakdown-label">61-90 дней</span>
+                                                    <span class="breakdown-label">61-90 дней просрочки</span>
                                                     <span class="breakdown-value">{{ formatCurrency(customer.agingBreakdown.days_61_90) }}</span>
                                                 </div>
                                                 <div class="breakdown-item" v-if="customer.agingBreakdown.days_91_plus > 0">
-                                                    <span class="breakdown-label">91+ дней</span>
+                                                    <span class="breakdown-label">более 91 дня просрочки</span>
                                                     <span class="breakdown-value">{{ formatCurrency(customer.agingBreakdown.days_91_plus) }}</span>
                                                 </div>
                                             </div>
@@ -451,13 +418,13 @@
                                 </div>
                                 <div class="structure-item-stats">
                                     <span class="structure-item-amount">{{ formatCurrency(item.amount) }}</span>
-                                    <span class="structure-item-percent">{{ formatPercent(item.percentage) }}</span>
+                                    <span class="structure-item-percent">{{ formatApiPercent(item.percentage) }}</span>
                                 </div>
                                 <div class="structure-progress-bar">
                                     <div 
                                         class="structure-progress-fill"
                                         :style="{ 
-                                            width: item.percentage + '%',
+                                            width: normalizeApiPercent(item.percentage) + '%',
                                             background: CHART_COLORS.serviceTypes[index % CHART_COLORS.serviceTypes.length]
                                         }"
                                     ></div>
@@ -500,13 +467,13 @@
                                 </div>
                                 <div class="structure-item-stats">
                                     <span class="structure-item-amount">{{ formatCurrency(item.amount) }}</span>
-                                    <span class="structure-item-percent">{{ formatPercent(item.percentage) }}</span>
+                                    <span class="structure-item-percent">{{ formatApiPercent(item.percentage) }}</span>
                                 </div>
                                 <div class="structure-progress-bar">
                                     <div 
                                         class="structure-progress-fill"
                                         :style="{ 
-                                            width: item.percentage + '%',
+                                            width: normalizeApiPercent(item.percentage) + '%',
                                             background: CHART_COLORS.managers[index % CHART_COLORS.managers.length]
                                         }"
                                     ></div>
@@ -959,6 +926,12 @@ import { onMounted, onBeforeUnmount, computed, ref } from 'vue';
 import { useAuthStore } from '~/stores/auth';
 import { useReportStore } from '~/stores/report';
 import { TREND_LABELS, TREND_ICONS, CHART_COLORS, type DynamicsTrend } from '~/types/reports-phase3';
+import { formatCurrency, formatPercent, formatDate, formatDaysUntilDue, formatOldestDebtDays, formatApiPercent, normalizeApiPercent, formatPeriodLabel, formatCompactCurrency } from '~/utils/formatters';
+import { getStatusLabel, getStatusClass, getDebtWorkStatusLabel, getOverdueCategoryLabel, getOverdueCategoryClass, getOverdueCategoryRecommendation, getDaysUntilDueClass } from '~/utils/statusHelpers';
+import { formatAgingBucket, mapAgingBucketToApiParam } from '~/utils/agingHelpers';
+import { getTrendClass, getBarHeight, getYAxisTicks, getChangeClass, getChangeLabel, getConcentrationRiskClass } from '~/utils/phase3Helpers';
+import { getDaysAgeBadgeClass } from '~/utils/statusHelpers';
+import { isOverdue } from '~/utils/formatters';
 
 definePageMeta({
     middleware: ['auth']
@@ -1004,6 +977,20 @@ const formatPercent = (value: number) => {
     return `${value.toFixed(1)}%`;
 };
 
+// Проценты, приходящие с API, иногда бывают в диапазоне 0..1 (доля), а UI ожидает 0..100.
+// Для таких значений аккуратно нормализуем к "процентным пунктам".
+const normalizeApiPercent = (value: number) => {
+    if (!Number.isFinite(value)) {
+        return Number.NaN;
+    }
+    if (value > 0 && value <= 1) {
+        return value * 100;
+    }
+    return value;
+};
+
+const formatApiPercent = (value: number) => formatPercent(normalizeApiPercent(value));
+
 const totalReceivables = computed(() => summary.value?.totalReceivables ?? 0);
 const overdueReceivables = computed(() => summary.value?.overdueReceivables ?? 0);
 const currentReceivables = computed(() => summary.value?.currentReceivables ?? Math.max(totalReceivables.value - overdueReceivables.value, 0));
@@ -1016,7 +1003,13 @@ const overdueInvoiceCount = computed(() => summary.value?.overdueInvoicesCount ?
 const formattedTotalReceivables = computed(() => formatCurrency(totalReceivables.value));
 const formattedOverdueReceivables = computed(() => formatCurrency(overdueReceivables.value));
 const formattedCurrentReceivables = computed(() => formatCurrency(currentReceivables.value));
-const overdueShare = computed(() => summary.value?.overduePercentage ?? (totalReceivables.value > 0 ? (overdueReceivables.value / totalReceivables.value) * 100 : 0));
+const overdueShare = computed(() => {
+    const apiValue = summary.value?.overduePercentage;
+    if (typeof apiValue === 'number') {
+        return normalizeApiPercent(apiValue);
+    }
+    return totalReceivables.value > 0 ? (overdueReceivables.value / totalReceivables.value) * 100 : 0;
+});
 const overdueShareLabel = computed(() => formatPercent(overdueShare.value));
 const currentShare = computed(() => totalReceivables.value > 0 ? (currentReceivables.value / totalReceivables.value) * 100 : 0);
 const currentShareLabel = computed(() => formatPercent(currentShare.value));
@@ -1040,28 +1033,7 @@ const overdueInvoiceCountLabel = computed(() => {
     return `${count} счетов`;
 });
 
-// Функция для форматирования названия bucket
-function formatAgingBucket(bucket: string): string {
-    if (bucket === 'Current' || bucket === 'current') {
-        return 'Срок оплаты не наступил';
-    }
-    return bucket;
-}
 
-const agingColorClasses = ['green', 'yellow', 'orange', 'red', 'purple'];
-const agingData = computed(() => agingStructure.value.map((bucket, index) => {
-    const percent = totalAgingAmount.value > 0 ? (bucket.amount / totalAgingAmount.value) * 100 : 0;
-    const width = percent > 0 ? Math.max(percent, 6) : 0;
-    return {
-        ...bucket,
-        bucket: formatAgingBucket(bucket.bucket), // Форматируем название bucket
-        percent,
-        percentLabel: formatPercent(percent),
-        formattedAmount: formatCurrency(bucket.amount),
-        colorClass: agingColorClasses[index % agingColorClasses.length],
-        width: `${width}%`
-    };
-}));
 
 const largestBucket = computed(() => {
     if (!agingStructure.value.length) {
@@ -1082,59 +1054,6 @@ const formatDays = (days: number) => {
     return `${days.toFixed(1)} дн.`;
 };
 
-// Health indicators - определяют состояние метрик
-type HealthStatus = 'excellent' | 'good' | 'warning' | 'danger';
-
-interface HealthIndicator {
-    status: HealthStatus;
-    label: string;
-    icon: string;
-}
-
-const getOverdueHealthStatus = (percent: number): HealthIndicator => {
-    if (percent < 10) {
-        return { status: 'excellent', label: 'Отлично', icon: '🟢' };
-    } else if (percent < 30) {
-        return { status: 'good', label: 'Нормально', icon: '🟡' };
-    } else {
-        return { status: 'danger', label: 'Требует внимания', icon: '🔴' };
-    }
-};
-
-const getTurnoverHealthStatus = (ratio: number): HealthIndicator => {
-    if (ratio > 3) {
-        return { status: 'excellent', label: 'Отлично', icon: '🟢' };
-    } else if (ratio >= 1) {
-        return { status: 'good', label: 'Нормально', icon: '🟡' };
-    } else if (ratio > 0) {
-        return { status: 'danger', label: 'Плохо', icon: '🔴' };
-    } else {
-        return { status: 'warning', label: 'Нет данных', icon: '⚪' };
-    }
-};
-
-const getPaymentDelayHealthStatus = (days: number): HealthIndicator => {
-    if (days <= 5) {
-        return { status: 'excellent', label: 'Отлично', icon: '🟢' };
-    } else if (days <= 15) {
-        return { status: 'good', label: 'Нормально', icon: '🟡' };
-    } else if (days > 0) {
-        return { status: 'danger', label: 'Плохо', icon: '🔴' };
-    } else {
-        return { status: 'excellent', label: 'Нет просрочек', icon: '🟢' };
-    }
-};
-
-const overdueHealthIndicator = computed(() => getOverdueHealthStatus(overdueShare.value));
-const turnoverHealthIndicator = computed(() => getTurnoverHealthStatus(summary.value?.turnoverRatio ?? 0));
-const paymentDelayHealthIndicator = computed(() => getPaymentDelayHealthStatus(summary.value?.averagePaymentDelayDays ?? 0));
-
-// Генерация алертов на основе данных
-interface Alert {
-    type: 'warning' | 'danger' | 'info';
-    icon: string;
-    message: string;
-}
 
 const alerts = computed(() => {
     if (!summary.value) return [];
@@ -1167,40 +1086,22 @@ const alerts = computed(() => {
         });
     }
     
-    // Проблемы с оборачиваемостью
-    if (s.turnoverRatio > 0 && s.turnoverRatio < 1) {
-        alertsList.push({
-            type: 'danger',
-            icon: '📊',
-            message: `Низкая оборачиваемость ДЗ: ${s.turnoverRatio.toFixed(2)}. Дебиторы медленно платят`
-        });
-    }
-    
     // Старая просрочка (91+)
     const oldestBucket = agingStructure.value.find(b => b.bucket === '91+');
     if (oldestBucket && oldestBucket.amount > 0) {
         alertsList.push({
             type: 'danger',
             icon: '🔥',
-            message: `Критическая просрочка 91+ дней: ${formatCurrency(oldestBucket.amount)} (${oldestBucket.count} счетов)`
+            message: `Критическая просрочка (${formatAgingBucket('91+')}): ${formatCurrency(oldestBucket.amount)} (${oldestBucket.count} счетов)`
         });
     }
     
     // Высокий процент просроченных платежей
-    if (s.overduePaymentsPercentage > 25) {
+    if (normalizeApiPercent(s.overduePaymentsPercentage) > 25) {
         alertsList.push({
             type: 'warning',
             icon: '💸',
-            message: `${formatPercent(s.overduePaymentsPercentage)} платежей поступают с просрочкой`
-        });
-    }
-    
-    // Позитивные алерты
-    if (overdueShare.value < 10 && s.turnoverRatio > 3) {
-        alertsList.push({
-            type: 'info',
-            icon: '✅',
-            message: 'Отличные показатели! Низкая просрочка и высокая оборачиваемость'
+            message: `${formatApiPercent(s.overduePaymentsPercentage)} платежей поступают с просрочкой`
         });
     }
     
@@ -1231,17 +1132,6 @@ const additionalMetrics = computed(() => {
             healthIndicator: paymentDelayHealthIndicator.value
         },
         {
-            label: 'Оборачиваемость ДЗ',
-            value: s.turnoverRatio > 0 ? s.turnoverRatio.toFixed(2) : '—',
-            hint: s.turnoverRatio > 0 ? 'Сколько раз ДЗ превратилась в деньги за период' : undefined,
-            healthIndicator: turnoverHealthIndicator.value
-        },
-        {
-            label: 'Выручка за период',
-            value: formatCurrency(s.periodRevenue),
-            hint: s.periodRevenue > 0 ? 'Сумма всех счетов, созданных в текущем месяце' : undefined
-        },
-        {
             label: 'Средний срок оплаты',
             value: formatDays(s.averagePaymentDays),
             hint: s.averagePaymentDays > 0 ? 'Среднее время от выставления счета до оплаты' : undefined
@@ -1253,7 +1143,7 @@ const additionalMetrics = computed(() => {
         },
         {
             label: 'Процент просроченных платежей',
-            value: formatPercent(s.overduePaymentsPercentage),
+            value: formatApiPercent(s.overduePaymentsPercentage),
             hint: s.overduePaymentsPercentage > 0 ? 'Доля просроченных платежей от общей суммы' : undefined
         },
         {
@@ -1263,7 +1153,7 @@ const additionalMetrics = computed(() => {
         },
         {
             label: 'Крупнейший сегмент просрочки',
-            value: largestBucket.value ? largestBucket.value.bucket : '—',
+            value: largestBucket.value ? formatAgingBucket(largestBucket.value.bucket) : '—',
             hint: largestBucket.value ? `Сумма: ${formatCurrency(largestBucket.value.amount)}` : undefined
         },
         {
@@ -1276,60 +1166,7 @@ const additionalMetrics = computed(() => {
     return metrics;
 });
 
-const formatInvoiceCount = (count: number) => {
-    if (!Number.isFinite(count) || count <= 0) {
-        return 'Нет счетов';
-    }
 
-    const lastDigit = count % 10;
-    const lastTwoDigits = count % 100;
-
-    if (lastDigit === 1 && lastTwoDigits !== 11) {
-        return `${count} счёт`;
-    }
-
-    if ([2, 3, 4].includes(lastDigit) && ![12, 13, 14].includes(lastTwoDigits)) {
-        return `${count} счёта`;
-    }
-
-    return `${count} счетов`;
-};
-
-const formatOldestDebtDays = (days: number) => {
-    if (!Number.isFinite(days) || days <= 0) {
-        return 'Без просрочки';
-    }
-
-    const lastDigit = days % 10;
-    const lastTwoDigits = days % 100;
-
-    if (lastDigit === 1 && lastTwoDigits !== 11) {
-        return `${days} день`;
-    }
-
-    if ([2, 3, 4].includes(lastDigit) && ![12, 13, 14].includes(lastTwoDigits)) {
-        return `${days} дня`;
-    }
-
-    return `${days} дней`;
-};
-
-const topDebtors = computed(() => {
-    return reportStore.topDebtors.map((debtor) => {
-        const detailsParts = [
-            formatInvoiceCount(debtor.invoiceCount),
-            `Просрочка: ${formatOldestDebtDays(debtor.oldestDebtDays)}`,
-            debtor.customerInn ? `УНП ${debtor.customerInn}` : null
-        ].filter((part): part is string => Boolean(part));
-
-        return {
-            ...debtor,
-            details: detailsParts.join(' · '),
-            totalDebtLabel: formatCurrency(debtor.totalDebt),
-            overdueDebtLabel: formatCurrency(debtor.overdueDebt)
-        };
-    });
-});
 
 const lastUpdatedLabel = computed(() => {
     const raw = summary.value?.lastUpdatedAt;
@@ -1367,12 +1204,16 @@ function handleRefresh() {
 // Функция для преобразования значений bucket в API формат
 function mapAgingBucketToApiParam(bucket: string): string {
     const bucketMapping: Record<string, string> = {
-        '1-30 дней': '1_30',
-        '31-60 дней': '31_60',
-        '61-90 дней': '61_90',
-        '91+ дней': '91_PLUS',
+        '1-30 дней просрочки': '1_30',
+        '31-60 дней просрочки': '31_60',
+        '61-90 дней просрочки': '61_90',
+        'более 91 дня просрочки': '91_PLUS',
         'Срок оплаты не наступил': 'current', // Срок оплаты не наступил соответствует непросроченным счетам
         'Current': 'current', // Для обратной совместимости
+        '1-30 дней': '1_30', // Старый формат
+        '31-60 дней': '31_60', // Старый формат
+        '61-90 дней': '61_90', // Старый формат
+        '91+ дней': '91_PLUS', // Старый формат
         '1-30': '1_30', // Формат без "дней"
         '31-60': '31_60', // Формат без "дней"
         '61-90': '61_90', // Формат без "дней"
@@ -1456,8 +1297,10 @@ const topConcentrationCustomers = computed(() => {
         rank: index + 1,
         totalDebtLabel: formatCurrency(customer.totalDebt),
         overdueDebtLabel: formatCurrency(customer.overdueDebt),
-        percentOfTotalLabel: formatPercent(customer.percentageOfTotal),
-        percentOfOverdueLabel: formatPercent(customer.percentageOfOverdue),
+        percentageOfTotal: normalizeApiPercent(customer.percentageOfTotal),
+        percentageOfOverdue: normalizeApiPercent(customer.percentageOfOverdue),
+        percentOfTotalLabel: formatApiPercent(customer.percentageOfTotal),
+        percentOfOverdueLabel: formatApiPercent(customer.percentageOfOverdue),
     }));
 });
 
@@ -1467,243 +1310,19 @@ const concentrationSummary = computed(() => {
     const s = concentrationData.value.summary;
     return {
         ...s,
+        maxConcentration: normalizeApiPercent(s.maxConcentration),
+        top5Concentration: normalizeApiPercent(s.top5Concentration),
+        top10Concentration: normalizeApiPercent(s.top10Concentration),
         totalDebtLabel: formatCurrency(s.totalDebt),
         totalOverdueDebtLabel: formatCurrency(s.totalOverdueDebt),
-        maxConcentrationLabel: formatPercent(s.maxConcentration),
-        top5ConcentrationLabel: formatPercent(s.top5Concentration),
-        top10ConcentrationLabel: formatPercent(s.top10Concentration),
+        maxConcentrationLabel: formatApiPercent(s.maxConcentration),
+        top5ConcentrationLabel: formatApiPercent(s.top5Concentration),
+        top10ConcentrationLabel: formatApiPercent(s.top10Concentration),
     };
 });
 
-// Форматирование периода (2025-01 -> Янв 2025)
-function formatPeriodLabel(period: string): string {
-    if (!period) return '—';
-    const [year, month] = period.split('-');
-    const monthNames = ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
-    const monthIndex = parseInt(month, 10) - 1;
-    return `${monthNames[monthIndex] || month} ${year}`;
-}
-
-// Получить CSS класс для тренда
-function getTrendClass(trend: DynamicsTrend): string {
-    switch (trend) {
-        case 'increasing': return 'trend-up';
-        case 'decreasing': return 'trend-down';
-        case 'stable': return 'trend-stable';
-        default: return '';
-    }
-}
-
-// Получить цвет бара на основе индекса
-function getBarColor(index: number): string {
-    return CHART_COLORS.agingBuckets[index % CHART_COLORS.agingBuckets.length];
-}
-
-// Обновление данных Фазы 3
-function handleRefreshPhase3() {
-    reportStore.fetchAllPhase3Data();
-}
-
-// Получить высоту бара для графика
-function getBarHeight(value: number, chartData: { totalDebtData: number[], overdueDebtData: number[] }): string {
-    const maxValue = Math.max(...chartData.totalDebtData, ...chartData.overdueDebtData);
-    if (maxValue <= 0) return '0%';
-    const percentage = (value / maxValue) * 100;
-    return `${Math.max(percentage, 2)}%`;
-}
-
-// Получить засечки оси Y
-function getYAxisTicks(chartData: { totalDebtData: number[], overdueDebtData: number[] }): number[] {
-    const maxValue = Math.max(...chartData.totalDebtData, ...chartData.overdueDebtData);
-    if (maxValue <= 0) return [0];
-    
-    // Создаем 5 засечек
-    const step = maxValue / 4;
-    return [0, step, step * 2, step * 3, maxValue].reverse();
-}
-
-// Форматирование компактной валюты (для оси Y)
-function formatCompactCurrency(value: number): string {
-    if (value >= 1000000) {
-        return `${(value / 1000000).toFixed(1)} млн`;
-    } else if (value >= 1000) {
-        return `${(value / 1000).toFixed(0)} тыс`;
-    }
-    return value.toFixed(0);
-}
-
-// Получить класс для изменения
-function getChangeClass(current: number, previous: number): string {
-    if (previous === 0) return 'change-neutral';
-    const change = ((current - previous) / previous) * 100;
-    if (change > 5) return 'change-up';
-    if (change < -5) return 'change-down';
-    return 'change-neutral';
-}
-
-// Получить метку изменения
-function getChangeLabel(current: number, previous: number): string {
-    if (previous === 0) return '—';
-    const change = ((current - previous) / previous) * 100;
-    const sign = change > 0 ? '+' : '';
-    return `${sign}${change.toFixed(1)}%`;
-}
-
-// Получить класс риска концентрации
-function getConcentrationRiskClass(percentage: number): string {
-    if (percentage > 70) return 'risk-critical';
-    if (percentage > 50) return 'risk-high';
-    if (percentage > 30) return 'risk-medium';
-    return 'risk-low';
-}
-
-// Получить класс бейджа возраста долга
-function getDaysAgeBadgeClass(days: number): string {
-    if (days > 90) return 'days-critical';
-    if (days > 60) return 'days-high';
-    if (days > 30) return 'days-medium';
-    return 'days-low';
-}
-
-// Функции для работы со счетами
-function formatDate(dateString: string) {
-    if (!dateString) return '—';
-    const date = new Date(dateString);
-    if (isNaN(date.getTime())) return '—';
-    return date.toLocaleDateString('ru-RU', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric'
-    });
-}
-
-function isOverdue(dueDateString: string | undefined) {
-    if (!dueDateString) return false;
-    const dueDate = new Date(dueDateString);
-    if (isNaN(dueDate.getTime())) return false;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    dueDate.setHours(0, 0, 0, 0);
-    return dueDate < today;
-}
-
-function getStatusLabel(status: string) {
-    const statusMap: Record<string, string> = {
-        'PAID': 'Оплачено',
-        'OVERDUE': 'Просрочено',
-        'CURRENT': 'В срок',
-        'PARTIAL': 'Частично оплачено',
-        'trial': 'Досудебный',
-        'collection': 'Взыскание',
-        'open': 'Открыт',
-        'pre-trial': 'Предсудебный',
-    };
-    return statusMap[status] || status;
-}
-
-function getStatusClass(status: string) {
-    const classMap: Record<string, string> = {
-        'PAID': 'status-paid',
-        'OVERDUE': 'status-overdue',
-        'CURRENT': 'status-current',
-        'PARTIAL': 'status-partial',
-    };
-    return classMap[status] || 'status-default';
-}
-
-function getDebtWorkStatusLabel(status: string) {
-    const statusMap: Record<string, string> = {
-        'CALL': 'Прозвон',
-        'CLAIM': 'Претензия',
-        'COURT': 'Суд',
-    };
-    return statusMap[status] || status;
-}
-
-// === Новые функции для Фазы 2 ===
-
-// Форматирование "Долг по сроку"
-function formatDaysUntilDue(invoice: any): string {
-    // Используем поле daysUntilDue если есть, иначе вычисляем
-    if (invoice.daysUntilDue !== undefined) {
-        const days = invoice.daysUntilDue;
-        if (days > 0) return `${days} дн. до срока`;
-        if (days === 0) return 'Сегодня';
-        return `${Math.abs(days)} дн. просрочки`;
-    }
-    
-    // Fallback: вычисляем на клиенте
-    if (!invoice.dueDate) return '—';
-    const dueDate = new Date(invoice.dueDate);
-    if (isNaN(dueDate.getTime())) return '—';
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    dueDate.setHours(0, 0, 0, 0);
-    const diffTime = dueDate.getTime() - today.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
-    if (diffDays > 0) return `${diffDays} дн. до срока`;
-    if (diffDays === 0) return 'Сегодня';
-    return `${Math.abs(diffDays)} дн. просрочки`;
-}
-
-// CSS класс для "Долг по сроку"
-function getDaysUntilDueClass(invoice: any): string {
-    const days = invoice.daysUntilDue ?? calculateDaysUntilDue(invoice.dueDate);
-    if (days === undefined || days === null) return '';
-    if (days > 7) return 'days-ok';
-    if (days > 0) return 'days-warning';
-    if (days === 0) return 'days-today';
-    return 'days-overdue';
-}
-
-function calculateDaysUntilDue(dueDate: string | undefined): number | undefined {
-    if (!dueDate) return undefined;
-    const due = new Date(dueDate);
-    if (isNaN(due.getTime())) return undefined;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    due.setHours(0, 0, 0, 0);
-    return Math.ceil((due.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-}
-
-// Метки категорий просрочки
-function getOverdueCategoryLabel(category: string | undefined): string {
-    const labels: Record<string, string> = {
-        'NOT_DUE': 'Срок не наступил',
-        'NOTIFY': 'Оповестить',
-        'CLAIM': 'Претензия',
-        'COURT': 'Суд',
-        'BAD_DEBT': 'Безнадёжный',
-    };
-    return category ? labels[category] || '—' : '—';
-}
-
-// CSS класс для категории просрочки
-function getOverdueCategoryClass(category: string | undefined): string {
-    const classes: Record<string, string> = {
-        'NOT_DUE': 'category-not-due',
-        'NOTIFY': 'category-notify',
-        'CLAIM': 'category-claim',
-        'COURT': 'category-court',
-        'BAD_DEBT': 'category-bad-debt',
-    };
-    return category ? classes[category] || '' : '';
-}
-
-// Рекомендация по категории просрочки
-function getOverdueCategoryRecommendation(category: string | undefined): string {
-    const recommendations: Record<string, string> = {
-        'NOT_DUE': 'Срок оплаты ещё не наступил',
-        'NOTIFY': 'Оповестить дебитора (звонок, e-mail)',
-        'CLAIM': 'Направить претензию дебитору',
-        'COURT': 'Направить заявление в суд (только после претензии!)',
-        'BAD_DEBT': 'Признание безнадёжным долгом и списание (более 3 лет)',
-    };
-    return category ? recommendations[category] || '' : '';
-}
-
-// === Конец новых функций Фазы 2 ===
+// Импортируем isOverdue из утилит
+import { isOverdue } from '~/utils/formatters';
 
 const invoiceFilterTimeout = ref<ReturnType<typeof setTimeout> | null>(null);
 
