@@ -1,7 +1,7 @@
 # ./ShnurAA_214371_RIOPK_Client/Dockerfile
 
 # --- Build Stage ---
-FROM node:18-alpine
+FROM node:22.13.1
 
 # Принимаем аргумент сборки
 ARG NUXT_PUBLIC_API_BASE
@@ -21,10 +21,10 @@ COPY . .
 RUN echo "Building with NUXT_PUBLIC_API_BASE=${NUXT_PUBLIC_API_BASE}"
 
 # Запускаем сборку Nuxt
-RUN npm run build
+# RUN npm run build
 
 EXPOSE 3002
 
 ENV PORT=3002
 
-CMD ["npm", "run", "start"]
+CMD ["npm", "run", "preview"]
