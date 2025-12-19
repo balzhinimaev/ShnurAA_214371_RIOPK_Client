@@ -66,9 +66,9 @@
                             <p class="metric-value">{{ overdueShareLabel }}</p>
                             <span 
                                 class="health-badge" 
-                                :class="'health-' + overdueHealthIndicator.status"
+                                :class="'health-' + (overdueHealthIndicator?.status ?? 'good')"
                             >
-                                {{ overdueHealthIndicator.icon }} {{ overdueHealthIndicator.label }}
+                                {{ overdueHealthIndicator?.icon }} {{ overdueHealthIndicator?.label }}
                             </span>
                         </div>
                         <p class="metric-change neutral">Просрочено счетов: {{ overdueInvoiceCountLabel }}</p>
