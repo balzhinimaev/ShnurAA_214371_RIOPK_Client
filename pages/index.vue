@@ -349,8 +349,8 @@
                                 <thead>
                                     <tr>
                                         <th>Период</th>
-                                        <th>Общая ДЗ</th>
-                                        <th>Просроченная ДЗ</th>
+                                        <th class="text-center">Общая ДЗ</th>
+                                        <th class="text-center">Просроченная ДЗ</th>
                                         <th>Доля просрочки</th>
                                         <th>Изменение</th>
                                     </tr>
@@ -413,7 +413,7 @@
                                         class="structure-color-dot"
                                         :style="{ background: CHART_COLORS.serviceTypes[index % CHART_COLORS.serviceTypes.length] }"
                                     ></span>
-                                    <span class="structure-item-name">{{ item.serviceType || 'Не указано' }}</span>
+                                    <span class="structure-item-name">{{ getServiceTypeLabel(item.serviceType) }}</span>
                                     <span class="structure-item-count">{{ item.count }} счетов</span>
                                 </div>
                                 <div class="structure-item-stats">
@@ -462,7 +462,7 @@
                                         class="structure-color-dot"
                                         :style="{ background: CHART_COLORS.managers[index % CHART_COLORS.managers.length] }"
                                     ></span>
-                                    <span class="structure-item-name">{{ item.manager || 'Не указан' }}</span>
+                                    <span class="structure-item-name">{{ getManagerLabel(item.manager) }}</span>
                                     <span class="structure-item-count">{{ item.count }} счетов</span>
                                 </div>
                                 <div class="structure-item-stats">
@@ -575,7 +575,7 @@
                                         <th class="th-amount">Просрочено</th>
                                         <th class="th-percent">Доля от общей ДЗ</th>
                                         <th class="th-percent">Доля от просрочки</th>
-                                        <th class="th-days">Старость долга</th>
+                                        <th class="th-days">Количество дней просрочки</th>
                                         <th class="th-count">Счетов</th>
                                     </tr>
                                 </thead>
@@ -723,12 +723,12 @@
                             </div>
 
                             <div class="filter-group">
-                                <label class="filter-label">Мин. сумма</label>
+                                <label class="filter-label">Мин. сумма остатка долга</label>
                                 <input 
                                     v-model.number="invoiceFilters.minAmount" 
                                     @input="handleInvoiceFilterChange"
                                     type="number" 
-                                    placeholder="Минимальная сумма"
+                                    placeholder="Минимальная сумма остатка"
                                     class="filter-input"
                                 />
                             </div>
@@ -857,7 +857,7 @@
                                                 {{ getDebtWorkStatusLabel(invoice.debtWorkStatus) }}
                                             </span>
                                         </td>
-                                        <td>{{ invoice.manager || '—' }}</td>
+                                        <td>{{ getManagerLabel(invoice.manager) }}</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -926,7 +926,7 @@ import { onMounted, onBeforeUnmount, computed, ref } from 'vue';
 import { useAuthStore } from '~/stores/auth';
 import { useReportStore } from '~/stores/report';
 import { TREND_LABELS, TREND_ICONS, CHART_COLORS, type DynamicsTrend } from '~/types/reports-phase3';
-import { formatCurrency, formatPercent, formatDate, formatDaysUntilDue, formatOldestDebtDays, formatApiPercent, normalizeApiPercent, formatPeriodLabel, formatCompactCurrency } from '~/utils/formatters';
+import { formatCurrency, formatPercent, formatDate, formatDaysUntilDue, formatOldestDebtDays, formatApiPercent, normalizeApiPercent, formatPeriodLabel, formatCompactCurrency, formatInvoiceCount } from '~/utils/formatters';
 import { getStatusLabel, getStatusClass, getDebtWorkStatusLabel, getOverdueCategoryLabel, getOverdueCategoryClass, getOverdueCategoryRecommendation, getDaysUntilDueClass } from '~/utils/statusHelpers';
 import { formatAgingBucket, mapAgingBucketToApiParam } from '~/utils/agingHelpers';
 import { getTrendClass, getBarHeight, getYAxisTicks, getChangeClass, getChangeLabel, getConcentrationRiskClass } from '~/utils/phase3Helpers';
@@ -939,6 +939,44 @@ definePageMeta({
 
 const authStore = useAuthStore();
 const reportStore = useReportStore();
+
+// Health indicator types
+type HealthStatus = 'excellent' | 'good' | 'warning' | 'danger';
+
+interface HealthIndicator {
+    status: HealthStatus;
+    label: string;
+    icon: string;
+}
+
+interface Alert {
+    type: 'warning' | 'danger' | 'info';
+    icon: string;
+    message: string;
+}
+
+// Маппинг названий типов услуг на кириллицу
+const SERVICE_TYPE_LABELS: Record<string, string> = {
+    'PKT_SUPPORT': 'Сопровождение программной кассы',
+    'Other': 'Другие услуги',
+    'VENDING_SERVICE': 'Обслуживание торговых автоматов',
+    'KKT_SERVICE': 'Обслуживание кассового суммирующего аппарата',
+    'KKT_INSTALLATION': 'Установка кассового суммирующего аппарата',
+    'VENDING_INSTALLATION': 'Установка торгового автомата',
+};
+
+// Функция для получения отображаемого названия типа услуги
+function getServiceTypeLabel(serviceType: string | null | undefined): string {
+    if (!serviceType) return 'Не указано';
+    return SERVICE_TYPE_LABELS[serviceType] || serviceType;
+}
+
+// Функция для получения отображаемого имени менеджера
+function getManagerLabel(manager: string | null | undefined): string {
+    if (!manager) return 'Не указан';
+    if (manager === 'Unassigned') return 'Менеджер за счёт не закреплён';
+    return manager;
+}
 
 // Состояние для раскрытых aging элементов (ключ - bucket, значение - boolean)
 const expandedAgingItems = ref<Record<string, boolean>>({});
@@ -958,45 +996,46 @@ const invoiceSortOrder = ref<'asc' | 'desc'>('desc');
 
 const summary = computed(() => reportStore.dashboardSummary);
 
-const formatCurrency = (value: number) => {
-    if (!Number.isFinite(value)) {
-        return '—';
-    }
-    return value.toLocaleString('ru-RU', {
-        style: 'currency',
-        currency: 'RUB',
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0
-    });
-};
-
-const formatPercent = (value: number) => {
-    if (!Number.isFinite(value)) {
-        return '—';
-    }
-    return `${value.toFixed(1)}%`;
-};
-
-// Проценты, приходящие с API, иногда бывают в диапазоне 0..1 (доля), а UI ожидает 0..100.
-// Для таких значений аккуратно нормализуем к "процентным пунктам".
-const normalizeApiPercent = (value: number) => {
-    if (!Number.isFinite(value)) {
-        return Number.NaN;
-    }
-    if (value > 0 && value <= 1) {
-        return value * 100;
-    }
-    return value;
-};
-
-const formatApiPercent = (value: number) => formatPercent(normalizeApiPercent(value));
-
 const totalReceivables = computed(() => summary.value?.totalReceivables ?? 0);
 const overdueReceivables = computed(() => summary.value?.overdueReceivables ?? 0);
 const currentReceivables = computed(() => summary.value?.currentReceivables ?? Math.max(totalReceivables.value - overdueReceivables.value, 0));
 
 const agingStructure = computed(() => summary.value?.agingStructure ?? []);
 const totalAgingAmount = computed(() => agingStructure.value.reduce((sum, bucket) => sum + bucket.amount, 0));
+
+const agingColorClasses = ['green', 'yellow', 'orange', 'red', 'purple'];
+const agingData = computed(() => agingStructure.value.map((bucket, index) => {
+    const percent = totalAgingAmount.value > 0 ? (bucket.amount / totalAgingAmount.value) * 100 : 0;
+    const width = percent > 0 ? Math.max(percent, 6) : 0;
+    return {
+        ...bucket,
+        bucket: formatAgingBucket(bucket.bucket),
+        percent,
+        percentLabel: formatPercent(percent),
+        formattedAmount: formatCurrency(bucket.amount),
+        colorClass: agingColorClasses[index % agingColorClasses.length],
+        width: `${width}%`
+    };
+}));
+
+// Топ должников с форматированием
+const topDebtors = computed(() => {
+    return reportStore.topDebtors.map((debtor) => {
+        const detailsParts = [
+            formatInvoiceCount(debtor.invoiceCount),
+            `Просрочка: ${formatOldestDebtDays(debtor.oldestDebtDays)}`,
+            debtor.customerInn ? `УНП ${debtor.customerInn}` : null
+        ].filter((part): part is string => Boolean(part));
+
+        return {
+            ...debtor,
+            details: detailsParts.join(' · '),
+            totalDebtLabel: formatCurrency(debtor.totalDebt),
+            overdueDebtLabel: formatCurrency(debtor.overdueDebt)
+        };
+    });
+});
+
 const totalInvoices = computed(() => summary.value?.totalInvoicesCount ?? 0);
 const overdueInvoiceCount = computed(() => summary.value?.overdueInvoicesCount ?? 0);
 
@@ -1033,7 +1072,29 @@ const overdueInvoiceCountLabel = computed(() => {
     return `${count} счетов`;
 });
 
+const getOverdueHealthStatus = (percent: number): HealthIndicator => {
+    if (percent < 10) {
+        return { status: 'excellent', label: 'Отлично', icon: '🟢' };
+    } else if (percent < 30) {
+        return { status: 'good', label: 'Нормально', icon: '🟡' };
+    } else {
+        return { status: 'danger', label: 'Требует внимания', icon: '🔴' };
+    }
+};
 
+const overdueHealthIndicator = computed(() => getOverdueHealthStatus(overdueShare.value));
+
+const getPaymentDelayHealthStatus = (days: number): HealthIndicator => {
+    if (days <= 5) {
+        return { status: 'excellent', label: 'Отлично', icon: '🟢' };
+    } else if (days <= 15) {
+        return { status: 'good', label: 'Нормально', icon: '🟡' };
+    } else if (days > 0) {
+        return { status: 'danger', label: 'Плохо', icon: '🔴' };
+    } else {
+        return { status: 'excellent', label: 'Нет просрочек', icon: '🟢' };
+    }
+};
 
 const largestBucket = computed(() => {
     if (!agingStructure.value.length) {
@@ -1114,6 +1175,8 @@ const additionalMetrics = computed(() => {
     }
 
     const s = summary.value;
+    const paymentDelayHealthIndicator = getPaymentDelayHealthStatus(s.averagePaymentDelayDays ?? 0);
+
     const metrics = [
         {
             label: 'Количество счетов',
@@ -1129,7 +1192,7 @@ const additionalMetrics = computed(() => {
             label: 'Средний срок задержки оплаты',
             value: formatDays(s.averagePaymentDelayDays),
             hint: s.averagePaymentDelayDays > 0 ? 'Средний срок задержки для просроченных счетов' : undefined,
-            healthIndicator: paymentDelayHealthIndicator.value
+            healthIndicator: paymentDelayHealthIndicator
         },
         {
             label: 'Средний срок оплаты',
@@ -1199,33 +1262,6 @@ function handleRefresh() {
     if (!reportStore.topDebtorsLoading) {
         reportStore.fetchTopDebtors();
     }
-}
-
-// Функция для преобразования значений bucket в API формат
-function mapAgingBucketToApiParam(bucket: string): string {
-    const bucketMapping: Record<string, string> = {
-        '1-30 дней просрочки': '1_30',
-        '31-60 дней просрочки': '31_60',
-        '61-90 дней просрочки': '61_90',
-        'более 91 дня просрочки': '91_PLUS',
-        'Срок оплаты не наступил': 'current', // Срок оплаты не наступил соответствует непросроченным счетам
-        'Current': 'current', // Для обратной совместимости
-        '1-30 дней': '1_30', // Старый формат
-        '31-60 дней': '31_60', // Старый формат
-        '61-90 дней': '61_90', // Старый формат
-        '91+ дней': '91_PLUS', // Старый формат
-        '1-30': '1_30', // Формат без "дней"
-        '31-60': '31_60', // Формат без "дней"
-        '61-90': '61_90', // Формат без "дней"
-        '91+': '91_PLUS', // Формат без "дней"
-        '1_30': '1_30',
-        '31_60': '31_60',
-        '61_90': '61_90',
-        '91_PLUS': '91_PLUS',
-        'current': 'current' // lowercase вариант
-    };
-
-    return bucketMapping[bucket] || bucket;
 }
 
 async function handleAgingItemClick(agingBucket: string) {
@@ -1320,9 +1356,6 @@ const concentrationSummary = computed(() => {
         top10ConcentrationLabel: formatApiPercent(s.top10Concentration),
     };
 });
-
-// Импортируем isOverdue из утилит
-import { isOverdue } from '~/utils/formatters';
 
 const invoiceFilterTimeout = ref<ReturnType<typeof setTimeout> | null>(null);
 
@@ -2724,7 +2757,7 @@ onBeforeUnmount(() => {
 }
 
 .amount-cell {
-    text-align: right;
+    text-align: center;
     font-weight: 600;
 
     &.paid {
@@ -3186,6 +3219,10 @@ onBeforeUnmount(() => {
     }
 }
 
+.text-center {
+    text-align: center !important;
+}
+
 .period-cell {
     font-weight: 600;
     color: #4a5568;
@@ -3193,7 +3230,7 @@ onBeforeUnmount(() => {
 
 .amount-cell {
     font-weight: 600;
-    text-align: right;
+    text-align: center;
 
     &.overdue {
         color: #c53030;
