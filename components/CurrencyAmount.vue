@@ -2,16 +2,19 @@
   <span class="currency-amount" :class="[sizeClass, { 'currency-danger': danger }]">
     <span class="currency-value">{{ formattedValue }}</span>
     <img 
+      v-if="!imageError"
       src="/znak.png" 
-      alt="Бр" 
+      alt="Бел.руб." 
       class="currency-icon"
       :class="sizeClass"
+      @error="imageError = true"
     />
+    <span v-else class="currency-text">Бел.руб.</span>
   </span>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, ref } from 'vue';
 
 const props = withDefaults(defineProps<{
   value: number | undefined | null;
@@ -21,6 +24,8 @@ const props = withDefaults(defineProps<{
   size: 'md',
   danger: false
 });
+
+const imageError = ref(false);
 
 const formattedValue = computed(() => {
   if (props.value === undefined || props.value === null || !Number.isFinite(props.value)) {
@@ -55,6 +60,12 @@ const sizeClass = computed(() => `size-${props.size}`);
   flex-shrink: 0;
 }
 
+.currency-text {
+  font-size: 0.75em;
+  opacity: 0.7;
+  font-weight: 500;
+}
+
 /* Размеры */
 .currency-icon.size-xs {
   width: 0.7em;
@@ -85,4 +96,3 @@ const sizeClass = computed(() => `size-${props.size}`);
   filter: brightness(0) saturate(100%) invert(22%) sepia(93%) saturate(2066%) hue-rotate(351deg) brightness(89%) contrast(93%);
 }
 </style>
-

@@ -19,7 +19,7 @@ export const formatCurrency = (value: number): string => {
     return value.toLocaleString('ru-RU', {
         minimumFractionDigits: 0,
         maximumFractionDigits: 0
-    }) + ' Бр';
+    }) + ' Бел.руб.';
 };
 
 export const formatPercent = (value: number): string => {

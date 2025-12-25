@@ -250,7 +250,7 @@ export const useReportStore = defineStore("report", {
       return state.dashboardSummary.totalReceivables.toLocaleString("ru-RU", {
         minimumFractionDigits: 0,
         maximumFractionDigits: 0,
-      }) + " Бр";
+      }) + " Бел.руб.";
     },
     formattedOverdueReceivables: (state) => {
       if (
@@ -261,7 +261,7 @@ export const useReportStore = defineStore("report", {
       return state.dashboardSummary.overdueReceivables.toLocaleString("ru-RU", {
         minimumFractionDigits: 0,
         maximumFractionDigits: 0,
-      }) + " Бр";
+      }) + " Бел.руб.";
     },
     invoicesTotalPages: (state) => {
       if (state.invoicesTotal === 0 || state.invoicesPerPage <= 0) return 1;
