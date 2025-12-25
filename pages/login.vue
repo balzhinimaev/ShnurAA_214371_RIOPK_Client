@@ -3,18 +3,18 @@
         <div class="col-md-6 col-lg-4">
             <div class="card shadow-sm">
                 <div class="card-body p-4 p-sm-5">
-                    <h1 class="card-title text-center mb-4">Login</h1>
+                    <h1 class="card-title text-center mb-4">Вход</h1>
                     <!-- Убедись, что обработчик submit привязан -->
                     <form @submit.prevent="handleLogin" novalidate>
                         <div class="mb-3">
-                            <label for="email" class="form-label">Email address</label>
+                            <label for="email" class="form-label">Адрес электронной почты</label>
                             <input type="email" class="form-control" id="email" v-model="credentials.email" required
                                 aria-describedby="emailHelp" />
                             <!-- Можно добавить показ ошибок валидации, если используешь Vuelidate -->
                             <!-- <div v-if="v$.email.$error" class="invalid-feedback">...</div> -->
                         </div>
                         <div class="mb-3">
-                            <label for="password" class="form-label">Password</label>
+                            <label for="password" class="form-label">Пароль</label>
                             <input type="password" class="form-control" id="password" v-model="credentials.password"
                                 required />
                             <!-- Можно добавить показ ошибок валидации, если используешь Vuelidate -->
@@ -32,14 +32,14 @@
                             <button type="submit" class="btn btn-primary btn-lg" :disabled="loading">
                                 <span v-if="loading" class="spinner-border spinner-border-sm me-1" role="status"
                                     aria-hidden="true"></span>
-                                {{ loading ? 'Logging in...' : 'Login' }}
+                                {{ loading ? 'Вход...' : 'Войти' }}
                             </button>
                         </div>
                     </form>
 
                     <!-- Ссылка на регистрацию -->
                     <div class="mt-4 text-center">
-                        <small class="text-muted">No account? <NuxtLink to="/register">Register here</NuxtLink></small>
+                        <small class="text-muted">Нет аккаунта? <NuxtLink to="/register">Зарегистрируйтесь здесь</NuxtLink></small>
                     </div>
                 </div>
             </div>
@@ -83,7 +83,7 @@ const errorMessage = computed(() => {
     if (!error.value) return '';
     // Пытаемся извлечь сообщение из стандартной ошибки или ошибки от $fetch
     // Ошибка $fetch часто содержит { data: { message: '...' } }
-    return error.value?.data?.message || error.value?.message || 'Login failed. Please check your credentials.';
+    return error.value?.data?.message || error.value?.message || 'Ошибка входа. Проверьте свои учетные данные.';
 });
 
 // Асинхронная функция для обработки отправки формы

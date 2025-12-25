@@ -101,7 +101,7 @@
           </div>
           
           <div v-if="record.amount" class="record-amount">
-            Сумма задолженности: <strong>{{ formatCurrency(record.amount) }}</strong>
+            Сумма задолженности: <strong><CurrencyAmount :value="record.amount" size="sm" /></strong>
           </div>
           
           <div v-if="record.nextActionDate" class="record-next-action">
@@ -128,6 +128,7 @@
 
 <script setup lang="ts">
 import type { DebtWorkRecord, CustomerDebtWorkStats, DebtWorkActionType, DebtWorkResult } from '~/types/customer-debt-work';
+import CurrencyAmount from '~/components/CurrencyAmount.vue';
 
 const props = defineProps<{
   records?: DebtWorkRecord[];
@@ -155,13 +156,7 @@ function formatDate(date: string | Date): string {
   }
 }
 
-function formatCurrency(amount: number): string {
-  return new Intl.NumberFormat('ru-RU', {
-    style: 'currency',
-    currency: 'BYN',
-    minimumFractionDigits: 2
-  }).format(amount);
-}
+// Форматирование валюты - удалена локальная функция, используем компонент CurrencyAmount
 
 function getActionTypeLabel(type: DebtWorkActionType): string {
   const labels: Record<DebtWorkActionType, string> = {

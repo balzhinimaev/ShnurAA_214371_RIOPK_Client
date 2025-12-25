@@ -4,7 +4,7 @@
         <nav class="navbar navbar-expand-lg navbar-dark bg-primary fixed-top shadow-sm">
             <div class="container-fluid">
                 <NuxtLink class="navbar-brand d-flex align-items-center" to="/">
-                     Debts Analyzer
+                     Анализ дебиторской задолженности
                 </NuxtLink>
                 <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavbar"
                     aria-controls="mainNavbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -113,7 +113,7 @@
 
         <footer class="py-3 mt-auto bg-light border-top">
             <div class="container text-center">
-                <p class="text-muted small mb-0">© {{ new Date().getFullYear() }} Debts Analyzer App</p>
+                <p class="text-muted small mb-0">© {{ new Date().getFullYear() }} Анализ дебиторской задолженности</p>
             </div>
         </footer>
     </div>

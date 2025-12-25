@@ -240,7 +240,7 @@ export const useReportStore = defineStore("report", {
       const data = state.dashboardSummary.agingStructure.map((b) => b.amount);
       return { labels, datasets: [{ label: "Amount by Aging Bucket", data }] };
     },
-    // Пример геттера: общая сумма в читаемом формате
+    // Пример геттера: общая сумма в читаемом формате (для tooltip'ов и экспорта)
     formattedTotalReceivables: (state) => {
       if (
         state.dashboardSummary?.totalReceivables === undefined ||
@@ -248,9 +248,9 @@ export const useReportStore = defineStore("report", {
       )
         return "N/A";
       return state.dashboardSummary.totalReceivables.toLocaleString("ru-RU", {
-        style: "currency",
-        currency: "RUB",
-      }); // Пример для рублей
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+      }) + " Бр";
     },
     formattedOverdueReceivables: (state) => {
       if (
@@ -259,9 +259,9 @@ export const useReportStore = defineStore("report", {
       )
         return "N/A";
       return state.dashboardSummary.overdueReceivables.toLocaleString("ru-RU", {
-        style: "currency",
-        currency: "RUB",
-      });
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0,
+      }) + " Бр";
     },
     invoicesTotalPages: (state) => {
       if (state.invoicesTotal === 0 || state.invoicesPerPage <= 0) return 1;

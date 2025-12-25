@@ -102,11 +102,11 @@
                 </div>
                 <div class="stat-card">
                   <div class="stat-label">Общий долг</div>
-                  <div class="stat-value">{{ formatCurrency(customerFullData.statistics.totalDebt) }}</div>
+                  <div class="stat-value"><CurrencyAmount :value="customerFullData.statistics.totalDebt" size="md" /></div>
                 </div>
                 <div class="stat-card stat-danger">
                   <div class="stat-label">Просроченный долг</div>
-                  <div class="stat-value">{{ formatCurrency(customerFullData.statistics.overdueDebt) }}</div>
+                  <div class="stat-value"><CurrencyAmount :value="customerFullData.statistics.overdueDebt" size="md" danger /></div>
                 </div>
                 <div class="stat-card">
                   <div class="stat-label">Оплачено вовремя</div>
@@ -139,8 +139,8 @@
                   <tbody>
                     <tr v-for="inv in customerFullData.invoices" :key="inv.id">
                       <td class="fw-semibold">{{ inv.invoiceNumber }}</td>
-                      <td>{{ formatCurrency(inv.totalAmount) }}</td>
-                      <td class="text-danger fw-semibold">{{ formatCurrency(inv.outstandingAmount) }}</td>
+                      <td><CurrencyAmount :value="inv.totalAmount" size="sm" /></td>
+                      <td class="text-danger fw-semibold"><CurrencyAmount :value="inv.outstandingAmount" size="sm" danger /></td>
                       <td>{{ formatDate(inv.dueDate) }}</td>
                       <td :class="getDaysOverdueClass(inv.daysOverdue)">
                         {{ formatDaysOverdue(inv.daysOverdue) }}
@@ -302,6 +302,7 @@ import { useCustomerStore } from '~/stores/customer';
 import type { CreateDebtWorkRecordData, DebtWorkRecord, CustomerDebtWorkStats, UpdateDebtWorkRecordData } from '~/types/customer-debt-work';
 import type { CustomerFullResponse, RiskFactorImpact } from '~/types/customer-full';
 import type { OverdueCategory } from '~/types/invoice';
+import CurrencyAmount from '~/components/CurrencyAmount.vue';
 
 // Типы (можно вынести)
 interface Customer {
@@ -557,16 +558,7 @@ async function loadFullCustomerData() {
   }
 }
 
-// Форматирование валюты
-function formatCurrency(value: number): string {
-  if (!Number.isFinite(value)) return '—';
-  return value.toLocaleString('ru-RU', {
-    style: 'currency',
-    currency: 'RUB',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0
-  });
-}
+// Форматирование валюты - удалена локальная функция, используем компонент CurrencyAmount
 
 // Форматирование даты
 function formatDate(dateString: string | undefined): string {

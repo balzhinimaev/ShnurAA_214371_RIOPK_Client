@@ -44,7 +44,7 @@
                             <span class="metric-label">Общая задолженность</span>
                             <span class="metric-icon">💰</span>
                         </div>
-                        <p class="metric-value">{{ formattedTotalReceivables }}</p>
+                        <p class="metric-value"><CurrencyAmount :value="totalReceivables" size="lg" /></p>
                         <p class="metric-change neutral">Всего выставленных счетов: {{ totalInvoices }}</p>
                     </article>
 
@@ -53,7 +53,7 @@
                             <span class="metric-label">Просроченная задолженность</span>
                             <span class="metric-icon">⚠️</span>
                         </div>
-                        <p class="metric-value">{{ formattedOverdueReceivables }}</p>
+                        <p class="metric-value"><CurrencyAmount :value="overdueReceivables" size="lg" danger /></p>
                         <p class="metric-change up">Доля от общей суммы: {{ overdueShareLabel }}</p>
                     </article>
 
@@ -79,7 +79,7 @@
                             <span class="metric-label">Непросроченная задолженность</span>
                             <span class="metric-icon">✅</span>
                         </div>
-                        <p class="metric-value">{{ formattedCurrentReceivables }}</p>
+                        <p class="metric-value"><CurrencyAmount :value="currentReceivables" size="lg" /></p>
                         <p class="metric-change down">Доля своевременных оплат: {{ currentShareLabel }}</p>
                     </article>
                 </section>
@@ -146,34 +146,34 @@
                                                 <div class="customer-stats">
                                                     <div class="stat-item">
                                                         <span class="stat-label">Общий долг</span>
-                                                        <span class="stat-value">{{ formatCurrency(customer.totalDebt) }}</span>
+                                                        <span class="stat-value"><CurrencyAmount :value="customer.totalDebt" size="sm" /></span>
                                                     </div>
                                                     <div class="stat-item stat-overdue">
                                                         <span class="stat-label">Просрочено</span>
-                                                        <span class="stat-value">{{ formatCurrency(customer.overdueDebt) }}</span>
+                                                        <span class="stat-value"><CurrencyAmount :value="customer.overdueDebt" size="sm" danger /></span>
                                                     </div>
                                                 </div>
                                             </div>
                                             <div class="customer-breakdown">
                                                 <div class="breakdown-item" v-if="customer.agingBreakdown.current > 0">
                                                     <span class="breakdown-label">Срок оплаты не наступил</span>
-                                                    <span class="breakdown-value">{{ formatCurrency(customer.agingBreakdown.current) }}</span>
+                                                    <span class="breakdown-value"><CurrencyAmount :value="customer.agingBreakdown.current" size="xs" /></span>
                                                 </div>
                                                 <div class="breakdown-item" v-if="customer.agingBreakdown.days_1_30 > 0">
                                                     <span class="breakdown-label">1-30 дней просрочки</span>
-                                                    <span class="breakdown-value">{{ formatCurrency(customer.agingBreakdown.days_1_30) }}</span>
+                                                    <span class="breakdown-value"><CurrencyAmount :value="customer.agingBreakdown.days_1_30" size="xs" /></span>
                                                 </div>
                                                 <div class="breakdown-item" v-if="customer.agingBreakdown.days_31_60 > 0">
                                                     <span class="breakdown-label">31-60 дней просрочки</span>
-                                                    <span class="breakdown-value">{{ formatCurrency(customer.agingBreakdown.days_31_60) }}</span>
+                                                    <span class="breakdown-value"><CurrencyAmount :value="customer.agingBreakdown.days_31_60" size="xs" /></span>
                                                 </div>
                                                 <div class="breakdown-item" v-if="customer.agingBreakdown.days_61_90 > 0">
                                                     <span class="breakdown-label">61-90 дней просрочки</span>
-                                                    <span class="breakdown-value">{{ formatCurrency(customer.agingBreakdown.days_61_90) }}</span>
+                                                    <span class="breakdown-value"><CurrencyAmount :value="customer.agingBreakdown.days_61_90" size="xs" /></span>
                                                 </div>
                                                 <div class="breakdown-item" v-if="customer.agingBreakdown.days_91_plus > 0">
                                                     <span class="breakdown-label">более 91 дня просрочки</span>
-                                                    <span class="breakdown-value">{{ formatCurrency(customer.agingBreakdown.days_91_plus) }}</span>
+                                                    <span class="breakdown-value"><CurrencyAmount :value="customer.agingBreakdown.days_91_plus" size="xs" /></span>
                                                 </div>
                                             </div>
                                         </div>
@@ -358,8 +358,8 @@
                                 <tbody>
                                     <tr v-for="(item, index) in dynamicsData?.dynamics" :key="item.period">
                                         <td class="period-cell">{{ formatPeriodLabel(item.period) }}</td>
-                                        <td class="amount-cell">{{ formatCurrency(item.totalDebt) }}</td>
-                                        <td class="amount-cell overdue">{{ formatCurrency(item.overdueDebt) }}</td>
+                                        <td class="amount-cell"><CurrencyAmount :value="item.totalDebt" size="sm" /></td>
+                                        <td class="amount-cell overdue"><CurrencyAmount :value="item.overdueDebt" size="sm" danger /></td>
                                         <td class="percent-cell">
                                             {{ item.totalDebt > 0 ? formatPercent((item.overdueDebt / item.totalDebt) * 100) : '—' }}
                                         </td>
@@ -417,7 +417,7 @@
                                     <span class="structure-item-count">{{ item.count }} счетов</span>
                                 </div>
                                 <div class="structure-item-stats">
-                                    <span class="structure-item-amount">{{ formatCurrency(item.amount) }}</span>
+                                    <span class="structure-item-amount"><CurrencyAmount :value="item.amount" size="sm" /></span>
                                     <span class="structure-item-percent">{{ formatApiPercent(item.percentage) }}</span>
                                 </div>
                                 <div class="structure-progress-bar">
@@ -466,7 +466,7 @@
                                     <span class="structure-item-count">{{ item.count }} счетов</span>
                                 </div>
                                 <div class="structure-item-stats">
-                                    <span class="structure-item-amount">{{ formatCurrency(item.amount) }}</span>
+                                    <span class="structure-item-amount"><CurrencyAmount :value="item.amount" size="sm" /></span>
                                     <span class="structure-item-percent">{{ formatApiPercent(item.percentage) }}</span>
                                 </div>
                                 <div class="structure-progress-bar">
@@ -836,9 +836,9 @@
                                         <td :class="getDaysUntilDueClass(invoice)">
                                             {{ formatDaysUntilDue(invoice) }}
                                         </td>
-                                        <td class="amount-cell">{{ formatCurrency(invoice.totalAmount) }}</td>
-                                        <td class="amount-cell paid">{{ formatCurrency(invoice.paidAmount) }}</td>
-                                        <td class="amount-cell outstanding">{{ formatCurrency(invoice.outstandingAmount) }}</td>
+                                        <td class="amount-cell"><CurrencyAmount :value="invoice.totalAmount" size="sm" /></td>
+                                        <td class="amount-cell paid"><CurrencyAmount :value="invoice.paidAmount" size="sm" /></td>
+                                        <td class="amount-cell outstanding"><CurrencyAmount :value="invoice.outstandingAmount" size="sm" danger /></td>
                                         <td>{{ formatDate(invoice.lastPaymentDate) }}</td>
                                         <td>
                                             <span 
@@ -926,7 +926,8 @@ import { onMounted, onBeforeUnmount, computed, ref } from 'vue';
 import { useAuthStore } from '~/stores/auth';
 import { useReportStore } from '~/stores/report';
 import { TREND_LABELS, TREND_ICONS, CHART_COLORS, type DynamicsTrend } from '~/types/reports-phase3';
-import { formatCurrency, formatPercent, formatDate, formatDaysUntilDue, formatOldestDebtDays, formatApiPercent, normalizeApiPercent, formatPeriodLabel, formatCompactCurrency, formatInvoiceCount } from '~/utils/formatters';
+import { formatCurrency, formatNumber, formatPercent, formatDate, formatDaysUntilDue, formatOldestDebtDays, formatApiPercent, normalizeApiPercent, formatPeriodLabel, formatCompactCurrency, formatInvoiceCount } from '~/utils/formatters';
+import CurrencyAmount from '~/components/CurrencyAmount.vue';
 import { getStatusLabel, getStatusClass, getDebtWorkStatusLabel, getOverdueCategoryLabel, getOverdueCategoryClass, getOverdueCategoryRecommendation, getDaysUntilDueClass } from '~/utils/statusHelpers';
 import { formatAgingBucket, mapAgingBucketToApiParam } from '~/utils/agingHelpers';
 import { getTrendClass, getBarHeight, getYAxisTicks, getChangeClass, getChangeLabel, getConcentrationRiskClass } from '~/utils/phase3Helpers';

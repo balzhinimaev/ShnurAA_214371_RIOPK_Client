@@ -18,7 +18,7 @@
 // Пример установки заголовка по умолчанию
 // useHead({
 //   titleTemplate: (titleChunk) => {
-//     return titleChunk ? `${titleChunk} - Debts Analyzer` : 'Debts Analyzer';
+//     return titleChunk ? `${titleChunk} - Анализ дебиторской задолженности` : 'Анализ дебиторской задолженности';
 //   }
 // })
 </script>

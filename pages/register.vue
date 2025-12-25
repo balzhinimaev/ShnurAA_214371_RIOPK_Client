@@ -3,21 +3,21 @@
         <div class="col-md-8 col-lg-6 col-xl-5">
             <div class="card shadow-sm">
                 <div class="card-body p-4 p-sm-5">
-                    <h1 class="card-title text-center mb-4">Register</h1>
+                    <h1 class="card-title text-center mb-4">Регистрация</h1>
                     <form @submit.prevent="handleRegister" novalidate>
                         <!-- Поле Имя -->
                         <div class="mb-3">
-                            <label for="name" class="form-label">Name</label>
+                            <label for="name" class="form-label">Имя</label>
                             <input type="text" class="form-control" :class="{ 'is-invalid': v$.name.$error }" id="name"
                                 v-model="state.name" @blur="v$.name.$touch" required aria-describedby="nameFeedback" />
                             <div id="nameFeedback" class="invalid-feedback" v-if="v$.name.$error">
-                                Please enter your name.
+                                Пожалуйста, введите ваше имя.
                             </div>
                         </div>
 
                         <!-- Поле Email -->
                         <div class="mb-3">
-                            <label for="email" class="form-label">Email address</label>
+                            <label for="email" class="form-label">Адрес электронной почты</label>
                             <input type="email" class="form-control" :class="{ 'is-invalid': v$.email.$error }"
                                 id="email" v-model="state.email" @blur="v$.email.$touch" required
                                 aria-describedby="emailFeedback" />
@@ -29,7 +29,7 @@
 
                         <!-- Поле Пароль -->
                         <div class="mb-4">
-                            <label for="password" class="form-label">Password</label>
+                            <label for="password" class="form-label">Пароль</label>
                             <input type="password" class="form-control" :class="{ 'is-invalid': v$.password.$error }"
                                 id="password" v-model="state.password" @blur="v$.password.$touch" required
                                 aria-describedby="passwordFeedback" />
@@ -38,7 +38,7 @@
                                 {{ error.$message }}
                             </div>
                             <div id="passwordHelpBlock" class="form-text">
-                                Must be at least 6 characters long.
+                                Должен содержать не менее 6 символов.
                             </div>
                         </div>
 
@@ -52,14 +52,14 @@
                             <button type="submit" class="btn btn-primary btn-lg" :disabled="loading || v$.$invalid">
                                 <span v-if="loading" class="spinner-border spinner-border-sm me-1" role="status"
                                     aria-hidden="true"></span>
-                                {{ loading ? 'Registering...' : 'Register' }}
+                                {{ loading ? 'Регистрация...' : 'Зарегистрироваться' }}
                             </button>
                         </div>
                     </form>
 
                     <!-- Ссылка на Логин -->
                     <div class="mt-4 text-center">
-                        <small class="text-muted">Already have an account? <NuxtLink to="/login">Login here</NuxtLink>
+                        <small class="text-muted">Уже есть аккаунт? <NuxtLink to="/login">Войдите здесь</NuxtLink>
                             </small>
                     </div>
                 </div>
@@ -92,14 +92,14 @@ const state = reactive({
 });
 
 const rules = {
-    name: { required: helpers.withMessage('Name is required.', required) },
+    name: { required: helpers.withMessage('Имя обязательно для заполнения.', required) },
     email: {
-        required: helpers.withMessage('Email is required.', required),
-        email: helpers.withMessage('Please enter a valid email address.', email)
+        required: helpers.withMessage('Адрес электронной почты обязателен для заполнения.', required),
+        email: helpers.withMessage('Пожалуйста, введите корректный адрес электронной почты.', email)
     },
     password: {
-        required: helpers.withMessage('Password is required.', required),
-        minLength: helpers.withMessage('Password must be at least 6 characters long.', minLength(6))
+        required: helpers.withMessage('Пароль обязателен для заполнения.', required),
+        minLength: helpers.withMessage('Пароль должен содержать не менее 6 символов.', minLength(6))
     },
 };
 
@@ -113,10 +113,10 @@ const apiErrorMessage = computed(() => {
     if (!apiError.value) return '';
     // Обрабатываем специфичные ошибки регистрации (например, 409 Conflict)
     if (apiError.value?.response?.status === 409) {
-        return 'An account with this email already exists.';
+        return 'Аккаунт с таким адресом электронной почты уже существует.';
     }
     // Пытаемся извлечь сообщение из стандартной ошибки или ошибки от $fetch
-    return apiError.value.data?.message || apiError.value.message || 'An unknown error occurred during registration.';
+    return apiError.value.data?.message || apiError.value.message || 'Произошла неизвестная ошибка при регистрации.';
 });
 
 

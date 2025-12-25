@@ -165,12 +165,10 @@
                       <span class="inn-badge">{{ customer.unp || '—' }}</span>
                     </td>
                     <td class="customer-debt-cell">
-                      {{ formatCurrency(customer.totalDebt) }}
+                      <CurrencyAmount :value="customer.totalDebt" size="sm" />
                     </td>
                     <td class="customer-overdue-cell">
-                      <span :class="{ 'text-danger fw-bold': customer.overdueDebt && customer.overdueDebt > 0 }">
-                        {{ formatCurrency(customer.overdueDebt) }}
-                      </span>
+                      <CurrencyAmount :value="customer.overdueDebt" size="sm" :danger="(customer.overdueDebt ?? 0) > 0" />
                     </td>
                     <td class="customer-rating-cell">
                       <span 
@@ -295,6 +293,7 @@ import { useAuthStore } from '~/stores/auth';
 import type { CustomerResponse as Customer } from '~/stores/customer';
 import type { UpdateCustomerData } from '~/stores/customer';
 import CustomerEditModal from '~/components/customers/CustomerEditModal.vue';
+import CurrencyAmount from '~/components/CurrencyAmount.vue';
 
 definePageMeta({
   middleware: ['auth', 'admin-analyst-only']
@@ -320,16 +319,7 @@ const canDelete = computed(() => {
   return authStore.user?.roles?.includes('ADMIN') ?? false;
 });
 
-// Функции форматирования
-function formatCurrency(value: number | undefined): string {
-  if (value === undefined || value === null || !Number.isFinite(value)) return '—';
-  return value.toLocaleString('ru-RU', {
-    style: 'currency',
-    currency: 'RUB',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0
-  });
-}
+// Функции форматирования - удалена локальная formatCurrency, используем компонент CurrencyAmount
 
 function formatDate(dateString: string | Date) {
   if (!dateString) return '—';

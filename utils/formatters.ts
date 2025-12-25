@@ -1,15 +1,25 @@
 // Утилиты для форматирования данных
 
+// Форматирование числа без символа валюты (для компонента CurrencyAmount)
+export const formatNumber = (value: number): string => {
+    if (!Number.isFinite(value)) {
+        return '—';
+    }
+    return value.toLocaleString('ru-RU', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0
+    });
+};
+
+// Форматирование с символом валюты (для tooltip'ов, title и т.д.)
 export const formatCurrency = (value: number): string => {
     if (!Number.isFinite(value)) {
         return '—';
     }
     return value.toLocaleString('ru-RU', {
-        style: 'currency',
-        currency: 'RUB',
         minimumFractionDigits: 0,
         maximumFractionDigits: 0
-    });
+    }) + ' Бр';
 };
 
 export const formatPercent = (value: number): string => {
